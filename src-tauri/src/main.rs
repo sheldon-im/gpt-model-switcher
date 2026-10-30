@@ -39,6 +39,9 @@ fn main() {
             let path = app.path().app_config_dir()?.join("settings.json");
             app.manage(AppState::new(path));
             notifications::setup(app.handle())?;
+            // The OS presents its request; only the user can grant access.
+            #[cfg(target_os="macos")]
+            std::thread::spawn(|| { let _ = platform::accessibility(true); });
             if !std::env::args().any(|a| a == "--background") {
                 if let Some(w) = app.get_webview_window("main") {
                     w.show()?;
@@ -97,6 +100,8 @@ fn main() {
             save_settings,
             get_status,
             get_history,
+            accessibility_status,
+            open_accessibility_settings,
             apply_preset
         ])
         .run(tauri::generate_context!())

@@ -34,6 +34,13 @@ fn request(args: &[&str]) -> Result<Value, String> {
     }
 }
 pub fn announce(message:&str)->Result<(),String>{request(&["announce",message]).map(|_|())}
+pub fn accessibility(prompt: bool) -> Result<bool, String> {
+    let value = request(&[if prompt { "request-access" } else { "access" }])?;
+    value["granted"].as_bool().ok_or("Missing accessibility permission status".into())
+}
+pub fn open_accessibility_settings() -> Result<(), String> {
+    request(&["open-access-settings"]).map(|_| ())
+}
 pub fn active() -> bool {
     request(&["foreground"])
         .ok()

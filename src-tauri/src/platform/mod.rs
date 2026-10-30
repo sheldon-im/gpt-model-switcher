@@ -7,5 +7,7 @@ impl Status {pub fn unavailable(message:impl Into<String>)->Self{Self{active:fal
 #[cfg(windows)] pub use windows::*;
 #[cfg(target_os="macos")] mod macos;
 #[cfg(target_os="macos")] pub use macos::*;
+#[cfg(not(target_os="macos"))] pub fn accessibility(_prompt:bool)->Result<bool,String>{Ok(true)}
+#[cfg(not(target_os="macos"))] pub fn open_accessibility_settings()->Result<(),String>{Ok(())}
 #[cfg(not(any(windows,target_os="macos")))] pub fn inspect()->Status{Status::unavailable("Unsupported OS")}
 

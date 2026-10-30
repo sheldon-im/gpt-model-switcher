@@ -131,6 +131,15 @@ let args=Array(CommandLine.arguments.dropFirst())
 AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(),0.6)
 do {
  switch args.first {
+ case "access": emit(["granted":AXIsProcessTrusted()])
+ case "request-access":
+    let options=[kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary
+    emit(["granted":AXIsProcessTrustedWithOptions(options)])
+ case "open-access-settings":
+    guard let url=URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"), NSWorkspace.shared.open(url) else {
+        throw BridgeError.message("Cannot open Accessibility settings / 손쉬운 사용 권한 설정을 열지 못했습니다.")
+    }
+    emit(["ok":true])
  case "announce":
     guard args.count==2 else {throw BridgeError.message("Missing announcement")}
     let application=NSApplication.shared

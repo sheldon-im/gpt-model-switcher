@@ -28,6 +28,15 @@ pub fn sync_shortcuts(app:&AppHandle,active:bool){
  Ok(status)
 }
 #[tauri::command] pub fn get_history(state:tauri::State<AppState>)->Result<Vec<Outcome>,String>{Ok(state.history.lock().map_err(|e|e.to_string())?.clone())}
+#[derive(serde::Serialize)]
+pub struct AccessibilityStatus { required: bool, granted: bool }
+#[tauri::command] pub async fn accessibility_status(prompt:bool)->Result<AccessibilityStatus,String>{
+ let granted=tauri::async_runtime::spawn_blocking(move||platform::accessibility(prompt)).await.map_err(|e|e.to_string())??;
+ Ok(AccessibilityStatus{required:cfg!(target_os="macos"),granted})
+}
+#[tauri::command] pub async fn open_accessibility_settings()->Result<(),String>{
+ tauri::async_runtime::spawn_blocking(platform::open_accessibility_settings).await.map_err(|e|e.to_string())?
+}
 pub fn publish(app:&AppHandle,outcome:Outcome){
  let state=app.state::<AppState>();if let Ok(mut history)=state.history.lock(){history.insert(0,outcome.clone());history.truncate(20);}
  if let Ok(settings)=state.settings.lock(){if settings.screen_reader_notifications{let ko=settings.language=="ko";let prefix=match(outcome.success,ko){(true,true)=>"전환 완료",(false,true)=>"전환 실패",(true,false)=>"Switched",(false,false)=>"Switch failed"};let pieces:Vec<_>=outcome.message.split(" / ").collect();let message=if ko{pieces[0]}else{pieces.last().copied().unwrap_or(&outcome.message)};let actual=if !outcome.success{outcome.actual.as_ref().map(|s|format!(". {} {}",s.model,s.effort)).unwrap_or_else(||if ko{". 현재 선택값은 확인하지 못했습니다.".into()}else{". Current selection could not be verified.".into()})}else{String::new()};crate::notifications::announce(app,format!("{prefix}. {message}{actual}"));}}

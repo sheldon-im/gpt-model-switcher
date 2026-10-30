@@ -1,5 +1,15 @@
 # 검증 상태 · 2026-10-30
 
+## Windows 릴리즈 후속
+
+사용자가 Mac 릴리즈와 README 변경을 Windows에 동기화한 뒤 Windows 태그·패키지 배포를 명시적으로 요청했습니다. 기존 Mac `v0.1.5`를 유지하고 Windows는 비공개 저장소의 `v0.1.5-windows` 시험 릴리즈로 구분합니다. 한국어 README 본문을 보존하며 영어판 이동 링크와 `README.en.md`를 추가했습니다. 한국어 원문 보존과 양방향 언어 링크·로컬 파일 경로를 확인했습니다.
+
+Windows 자동 검사·빌드의 최종 소스 커밋과 검사 수는 릴리즈에 첨부하는 `WINDOWS_VERIFICATION-0.1.5.json`, 자산 무결성은 `SHA256SUMS-0.1.5-windows.txt`를 기준으로 확인합니다. 설치 파일은 서명되지 않았으며 이번 패키징에서 실제 모델·추론을 변경하거나 설치 프로그램을 실행하지 않습니다. 실제 프리셋/동일 프리셋의 NVDA 음성·점자 세부 검증은 남아 있습니다.
+
+Mac `v0.1.5`의 `MAC_VERIFICATION-0.1.5.json`은 Rust42/React11/Swift23 및 네이티브 빌드와 사용자 VoiceOver 확인을 기록합니다. Windows에서 독립 재현한 결과가 아닙니다. 아래의 Mac 재빌드 대기·배포 미승인 설명은 그보다 앞선 통합 당시 기록입니다.
+
+## 이전 구현·통합 기록
+
 수행자: Windows의 Codex. 대상: Windows 11 x64의 로컬 소스 및 설치된 ChatGPT desktop 26.1027.3384.0. 설치·유료 가입·실제 프롬프트 전송은 수행하지 않았습니다. 사용자의 후속 명시적 승인에 따라 `gh`로 [sheldon-im/gpt-model-switcher](https://github.com/sheldon-im/gpt-model-switcher) private 저장소를 만들었습니다. 이어 사용자 지정 공유 드라이브의 Mac 0.1.4 수정본을 Windows 0.1.2에 통합하여 0.1.5로 구분합니다. `isPrivate=true`를 확인한 뒤 소스와 커밋 이력을 올리며 공개 전환이나 시험 패키지 외부 배포는 하지 않습니다.
 
 ## 현재 판정

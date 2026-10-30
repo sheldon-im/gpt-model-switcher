@@ -32,9 +32,6 @@ pub fn active() -> bool {
         .and_then(|v| v["active"].as_bool())
         .unwrap_or(false)
 }
-pub fn wait_shortcut_release() -> Result<(), String> {
-    request(&["release"]).map(|_| ())
-}
 type ForegroundCallback = Box<dyn Fn(bool) + Send + Sync>;
 static FOREGROUND_CALLBACK: std::sync::OnceLock<ForegroundCallback> = std::sync::OnceLock::new();
 extern "C" fn foreground_changed(active: u8) {

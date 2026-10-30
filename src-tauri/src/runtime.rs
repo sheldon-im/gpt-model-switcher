@@ -49,7 +49,11 @@ pub fn publish(app:&AppHandle,outcome:Outcome){
  let worker=app.clone();let result=tauri::async_runtime::spawn_blocking(move||{
    struct Guard<'a>(&'a AtomicBool);impl Drop for Guard<'_>{fn drop(&mut self){self.0.store(false,Ordering::SeqCst)}}
    let state=worker.state::<AppState>();let _guard=Guard(&state.busy);
-   match platform::wait_shortcut_release(){Ok(())=>platform::switch(&preset),Err(e)=>Outcome{success:false,message:e,actual:None,restored:false}}
+   // macOS uses only AX reads and conditional IPC; no key events are sent.
+   // Holding the shortcut modifiers must not veto this focus-free operation.
+   #[cfg(target_os="macos")] { platform::switch(&preset) }
+   #[cfg(not(target_os="macos"))]
+   { match platform::wait_shortcut_release(){Ok(())=>platform::switch(&preset),Err(e)=>Outcome{success:false,message:e,actual:None,restored:false}} }
  }).await.map_err(|e|e.to_string());
  match result{Ok(outcome)=>{publish(&app,outcome.clone());Ok(outcome)},Err(e)=>{app.state::<AppState>().busy.store(false,Ordering::SeqCst);Err(e)}}
 }

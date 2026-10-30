@@ -78,7 +78,10 @@ pub fn test_message(language: &str) -> &'static str {
         "모델 전환 음성 피드백 시험입니다."
     }
 }
-pub fn setup(app: &AppHandle) -> tauri::Result<()> {
+pub fn setup(app: &AppHandle, enabled: bool) -> tauri::Result<()> {
+    if !enabled || app.get_webview_window("notification").is_some() {
+        return Ok(());
+    }
     WebviewWindowBuilder::new(
         app,
         "notification",
@@ -96,6 +99,16 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     .visible(false)
     .build()?;
     Ok(())
+}
+pub fn configure(app: &AppHandle, enabled: bool) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if enabled {
+            let _ = setup(&handle, true);
+        } else if let Some(window) = handle.get_webview_window("notification") {
+            let _ = window.hide();
+        }
+    });
 }
 pub fn announce(app: &AppHandle, message: String) {
     let app_for_call = app.clone();
@@ -161,7 +174,10 @@ pub fn show(app: &AppHandle) {
     let sequence = SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
     let app = app.clone();
     let main = app.clone();
-    let _=app.run_on_main_thread(move||{if let Some(w)=main.get_webview_window("notification"){
+    let _=app.run_on_main_thread(move||{
+    if !main.state::<crate::runtime::AppState>().settings.lock().is_ok_and(|s|s.visual_notifications){return}
+    if setup(&main,true).is_err(){return}
+    if let Some(w)=main.get_webview_window("notification"){
    #[cfg(windows)]unsafe{if let Ok(hwnd)=w.hwnd(){use windows::Win32::UI::WindowsAndMessaging::{ShowWindow,SW_SHOWNOACTIVATE};let _=ShowWindow(hwnd,SW_SHOWNOACTIVATE);}}
    #[cfg(target_os="macos")]unsafe{if let Ok(pointer)=w.ns_window(){let window=pointer as *mut objc2::runtime::AnyObject;let _:()=objc2::msg_send![window,orderFront:std::ptr::null_mut::<objc2::runtime::AnyObject>()];}}
  }});

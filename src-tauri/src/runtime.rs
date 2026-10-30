@@ -14,6 +14,7 @@ pub struct AppState {
     pub path: PathBuf,
     pub load_error: Option<String>,
     pub busy: AtomicBool,
+    pub target_active: AtomicBool,
     pub bindings: Mutex<Option<String>>,
     pub history: Mutex<Vec<Outcome>>,
     gate: Mutex<()>,
@@ -26,6 +27,7 @@ impl AppState {
             path,
             load_error: loaded.err(),
             busy: AtomicBool::new(false),
+            target_active: AtomicBool::new(false),
             bindings: Mutex::new(None),
             history: Mutex::new(Vec::new()),
             gate: Mutex::new(()),
@@ -41,6 +43,7 @@ fn shortcut(p: &Preset) -> &str {
 }
 pub fn sync_shortcuts(app: &AppHandle, active: bool) {
     let state = app.state::<AppState>();
+    state.target_active.store(active, Ordering::SeqCst);
     let Ok(_gate) = state.gate.lock() else { return };
     let result = (|| {
         app.global_shortcut()
@@ -87,11 +90,13 @@ pub fn save_settings(settings: Settings, app: AppHandle) -> Result<(), String> {
     if let Some(e) = &state.load_error {
         return Err(e.clone());
     }
+    let visual = settings.visual_notifications;
     {
         let mut guard = state.settings.lock().map_err(|e| e.to_string())?;
         settings.save(&state.path)?;
         *guard = settings;
     }
+    crate::notifications::configure(&app, visual);
     sync_shortcuts(&app, platform::active());
     Ok(())
 }
@@ -116,6 +121,85 @@ pub async fn get_status(app: AppHandle) -> Result<platform::Status, String> {
 pub fn get_history(state: tauri::State<AppState>) -> Result<Vec<Outcome>, String> {
     Ok(state.history.lock().map_err(|e| e.to_string())?.clone())
 }
+#[derive(serde::Serialize)]
+pub struct AccessibilityStatus {
+    required: bool,
+    granted: bool,
+}
+pub fn write_runtime_diagnostic(app: &AppHandle) {
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let result:Result<(),String>=(async{
+   let access=accessibility_status(false).await?;
+   let state=handle.state::<AppState>();
+   let (visual,presets)={let settings=state.settings.lock().map_err(|e|e.to_string())?;
+    (settings.visual_notifications,settings.presets.iter().map(|p|serde_json::json!({"id":p.id,"model":p.model,"effort":p.effort,"macosShortcut":p.macos_shortcut})).collect::<Vec<_>>())};
+   let (count,latest)={let history=state.history.lock().map_err(|e|e.to_string())?;(history.len(),history.first().map(|o|o.success))};
+   let windows=handle.webview_windows().into_iter().filter_map(|(label,w)|w.is_visible().ok().filter(|visible|*visible).map(|_|label)).collect::<Vec<_>>();
+   let report=serde_json::json!({"version":handle.package_info().version.to_string(),"accessibilityGranted":access.granted,"visualNotifications":visual,"presets":presets,"visibleWindows":windows,"resultCount":count,"latestSuccess":latest,"settingsPath":state.path,"observedAtMs":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e|e.to_string())?.as_millis()});
+   let directory=handle.path().app_cache_dir().map_err(|e|e.to_string())?;
+   write_diagnostic_report(&directory,&report)?;
+   Ok(())
+  }).await;
+        if let Err(error) = result {
+            eprintln!("Runtime diagnostic failed: {error}");
+        }
+    });
+}
+fn write_diagnostic_report(
+    directory: &std::path::Path,
+    report: &serde_json::Value,
+) -> Result<(), String> {
+    std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+    let pending = directory.join(format!(
+        "runtime-diagnostic-{}.pending.json",
+        uuid::Uuid::new_v4()
+    ));
+    let destination = directory.join("runtime-diagnostic.json");
+    std::fs::write(
+        &pending,
+        serde_json::to_vec_pretty(report).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    let result = unsafe {
+        use windows::{
+            core::HSTRING,
+            Win32::Storage::FileSystem::{
+                MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+            },
+        };
+        MoveFileExW(
+            &HSTRING::from(pending.as_os_str()),
+            &HSTRING::from(destination.as_os_str()),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+        .map_err(|e| e.to_string())
+    };
+    #[cfg(not(windows))]
+    let result = std::fs::rename(&pending, destination).map_err(|e| e.to_string());
+    if result.is_err() {
+        let _ = std::fs::remove_file(&pending);
+    }
+    result
+}
+#[tauri::command]
+pub async fn accessibility_status(prompt: bool) -> Result<AccessibilityStatus, String> {
+    let granted = tauri::async_runtime::spawn_blocking(move || platform::accessibility(prompt))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok(AccessibilityStatus {
+        required: cfg!(target_os = "macos"),
+        granted,
+    })
+}
+#[tauri::command]
+pub async fn open_accessibility_settings() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(platform::open_accessibility_settings)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn test_announcement(app: AppHandle) -> Result<crate::notifications::Delivery, String> {
     let message = {
@@ -126,9 +210,20 @@ pub async fn test_announcement(app: AppHandle) -> Result<crate::notifications::D
         }
         crate::notifications::test_message(&settings.language).to_string()
     };
-    tauri::async_runtime::spawn_blocking(move || crate::notifications::deliver(&app, &message))
-        .await
-        .map_err(|e| e.to_string())?
+    // Match normal outcome delivery: Cocoa announcements belong on the app's UI thread.
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let _ = sender.send(crate::notifications::deliver(&handle, &message));
+    })
+    .map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        receiver
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??
 }
 pub fn publish(app: &AppHandle, outcome: Outcome) {
     let state = app.state::<AppState>();
@@ -215,7 +310,11 @@ pub async fn apply_preset(app: AppHandle, id: String) -> Result<Outcome, String>
 pub fn shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, key, event| {
-            if event.state() != ShortcutState::Pressed || !platform::active() {
+            #[cfg(target_os = "macos")]
+            let active = app.state::<AppState>().target_active.load(Ordering::SeqCst);
+            #[cfg(not(target_os = "macos"))]
+            let active = platform::active();
+            if event.state() != ShortcutState::Pressed || !active {
                 return;
             }
             let preset = {
@@ -237,4 +336,33 @@ pub fn shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
             }
         })
         .build()
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn resident_diagnostic_can_be_replaced_without_touching_user_settings() {
+        let directory = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../work")
+            .join(format!("diagnostic-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let settings = directory.join("settings.json");
+        std::fs::write(&settings, b"original settings").unwrap();
+        write_diagnostic_report(
+            &directory,
+            &serde_json::json!({"version":"first","visibleWindows":[]}),
+        )
+        .unwrap();
+        write_diagnostic_report(&directory,&serde_json::json!({"version":"second","accessibilityGranted":true,"visibleWindows":[]})).unwrap();
+        let report: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(directory.join("runtime-diagnostic.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report["version"], "second");
+        assert_eq!(std::fs::read(&settings).unwrap(), b"original settings");
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        std::fs::remove_file(settings).unwrap();
+        std::fs::remove_file(directory.join("runtime-diagnostic.json")).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
 }

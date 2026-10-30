@@ -49,7 +49,7 @@ func target()->(NSRunningApplication,AXUIElement)? {
     return nil
 }
 func snapshot() throws -> [String:Any] {
-    guard AXIsProcessTrusted() else {throw BridgeError.message("접근성 권한이 필요합니다. / Allow Accessibility access for GPT Model Switcher and its macos-bridge helper.")}
+    guard AXIsProcessTrusted() else {throw BridgeError.message("접근성 권한이 필요합니다. / Allow Accessibility access for GPT Model Switcher.")}
     guard let (app,root)=target() else {throw BridgeError.message("ChatGPT 앱을 활성화하십시오. / Activate ChatGPT.")}
     let application = AXUIElementCreateApplication(app.processIdentifier)
     guard let windows = attr(application,kAXWindowsAttribute) as? [AXUIElement], windows.count == 1 else {

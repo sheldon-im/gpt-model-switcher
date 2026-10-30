@@ -1,22 +1,33 @@
 import {useEffect,useRef,useState} from 'react';
-import {api,Settings,Preset,Status,Outcome} from './api';
+import {api,Settings,Preset,Status,Outcome,AccessibilityStatus} from './api';
 import {validateShortcuts} from './shortcuts';
 import {outcomeTitle} from './outcome';
 const efforts=['none','minimal','low','medium','high','xhigh','max','ultra'];
 export function App(){
  const [settings,setSettings]=useState<Settings>();const [status,setStatus]=useState<Status>();
  const [history,setHistory]=useState<Outcome[]>([]);
+ const [access,setAccess]=useState<AccessibilityStatus>();
  const [error,setError]=useState('');const [notice,setNotice]=useState('');const [saving,setSaving]=useState(false);
  const [testing,setTesting]=useState(false);const [testInfo,setTestInfo]=useState('');
  const addButton=useRef<HTMLButtonElement>(null);const ko=settings?.language!=='en';const t=(a:string,b:string)=>ko?a:b;
  useEffect(()=>{api.load().then(setSettings).catch(e=>setError(String(e)));api.status().then(setStatus).catch(e=>setError(String(e)));},[]);
  useEffect(()=>{document.documentElement.lang=ko?'ko':'en';},[ko]);
+ useEffect(()=>{
+  let disposed=false;
+  const refresh=()=>api.accessibility().then(a=>{if(!disposed)setAccess(a)}).catch(e=>{if(!disposed)setError(String(e))});
+  refresh();const timer=window.setInterval(refresh,2000);window.addEventListener('focus',refresh);
+  return()=>{disposed=true;window.clearInterval(timer);window.removeEventListener('focus',refresh)};
+ },[]);
  useEffect(()=>{let disposed=false;let stop:(()=>void)|undefined;api.history().then(h=>{if(!disposed)setHistory(h)}).catch(e=>setError(String(e)));api.subscribe(outcome=>setHistory(h=>[outcome,...h].slice(0,20))).then(unlisten=>{if(disposed)unlisten();else stop=unlisten;});return()=>{disposed=true;stop?.();};},[]);
  const update=(id:string,patch:Partial<Preset>)=>setSettings(s=>s&&({...s,presets:s.presets.map(p=>p.id===id?{...p,...patch}:p)}));
  async function save(){if(!settings)return;setSaving(true);setError('');setNotice('');try{if(settings.presets.some(p=>!p.name.trim()||!p.model.trim()))throw new Error(t('이름과 모델을 입력하십시오.','Enter a name and model.'));validateShortcuts(settings);await api.save(settings);setNotice(t('설정을 저장했습니다.','Settings saved.'));}catch(e){setError(String(e));}finally{setSaving(false);}}
  if(!settings)return <main><h1>GPT Model Switcher</h1><p role={error?'alert':'status'}>{error||'설정을 불러오는 중입니다. / Loading settings…'}</p></main>;
  return <><a className="skip" href="#presets">{t('프리셋으로 바로 가기','Skip to presets')}</a><main>
  <header><p className="eyebrow">GPT MODEL SWITCHER</p><h1>{t('모델 전환 설정','Model switching settings')}</h1><p>{t('ChatGPT 앱에서 단축키 하나로 모델과 추론 수준을 함께 선택합니다.','Select a model and reasoning level together using a shortcut in ChatGPT.')}</p></header>
+ {access?.required&&<section aria-labelledby="access-title"><h2 id="access-title">{t('접근성 권한','Accessibility permission')}</h2>
+ <p role="status">{access.granted?t('접근성 권한이 허용되었습니다.','Accessibility access is granted.'):t('macOS 권한 요청을 확인하고 시스템 설정에서 GPT Model Switcher를 허용하십시오. 허용 후 자동으로 다시 확인합니다.','Review the macOS request and allow GPT Model Switcher in System Settings. Access is checked again automatically.')}</p>
+ {!access.granted&&<><button onClick={()=>api.accessibility(true).then(setAccess).catch(e=>setError(String(e)))}>{t('권한 다시 요청','Request permission again')}</button><button onClick={()=>api.openAccessibilitySettings().catch(e=>setError(String(e)))}>{t('손쉬운 사용 권한 설정 열기','Open Accessibility settings')}</button></>}
+ </section>}
  <section aria-labelledby="state-title"><h2 id="state-title">{t('연결 상태','Connection status')}</h2><p>{status?.message||t('확인 중…','Checking…')}</p><button onClick={()=>api.status().then(setStatus).catch(e=>setError(String(e)))}>{t('상태 새로고침','Refresh status')}</button></section>
  <section aria-labelledby="preferences-title"><h2 id="preferences-title">{t('환경 설정','Preferences')}</h2><label>{t('언어','Language')}<select value={settings.language} onChange={e=>setSettings({...settings,language:e.target.value as 'ko'|'en'})}><option value="ko">한국어</option><option value="en">English</option></select></label>
  <label className="check"><input type="checkbox" checked={settings.visual_notifications} onChange={e=>setSettings({...settings,visual_notifications:e.target.checked})}/>{t('화면 알림','Visual notifications')}</label>

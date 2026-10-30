@@ -21,7 +21,7 @@ pub struct Settings {
 }
 impl Default for Settings {
     fn default() -> Self {
-        Self { version: 1, language: "ko".into(), visual_notifications: true,
+        Self { version: 1, language: "ko".into(), visual_notifications: !cfg!(target_os="macos"),
             screen_reader_notifications: true,
             presets: [("daily", "일상용", "gpt-6.1-terra", "medium"),
                       ("coding", "코딩용", "gpt-6.1-sol", "high")].into_iter().enumerate()

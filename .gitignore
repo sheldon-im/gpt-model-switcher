@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+src-tauri/target/
+src-tauri/native/macos-bridge
+src-tauri/native/macos-bridge-aarch64-apple-darwin
+*.log
+.DS_Store
+src-tauri/icons/android/
+src-tauri/icons/ios/
+src-tauri/icons/Square*.png
+src-tauri/icons/StoreLogo.png
+work/
+src-tauri/gen/

@@ -1,0 +1,18 @@
+{
+  "recordedAtUtc": "2026-10-30T08:37:35.5572055Z",
+  "sourceCommit": "658ff4ba368a5b0e141dcd1d98f1d24d86df3d88",
+  "platform": "Windows x64",
+  "osVersion": "10.0.26300.0",
+  "rustTestsPassed": 26,
+  "frontendTestsPassed": 5,
+  "windowsReleaseBuild": "passed",
+  "nsisBuild": "passed",
+  "windowsSigning": "NotSigned",
+  "desktopSettingsRead": "passed on desktop 26.1027.3384.0; no model mutation",
+  "generationGuard": "passed on actual app; no model mutation",
+  "newRouteActualSwitch": "not tested",
+  "NVDA": "old menu route failed user observation; new route pending",
+  "macOSBuild": "not tested on Windows",
+  "VoiceOver": "not tested",
+  "currentLimit": "Private desktop settings protocol; local work conversations only; reject ambiguous identity and unsupported views"
+}

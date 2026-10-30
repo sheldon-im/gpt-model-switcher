@@ -11,5 +11,6 @@ load:async():Promise<Settings>=>isTauri()?invoke('get_settings'):JSON.parse(loca
 save:async(settings:Settings):Promise<void>=>{if(isTauri())return invoke('save_settings',{settings});localStorage.setItem('gpt-switcher-preview',JSON.stringify(settings));},
 status:async():Promise<Status>=>isTauri()?invoke('get_status'):{active:false,available:false,message:'Browser preview · 실제 모델 전환은 데스크톱 앱에서 가능합니다.'},
 history:async():Promise<Outcome[]>=>isTauri()?invoke('get_history'):[],
+testAnnouncement:async():Promise<{backend:string;warning?:string}>=>{if(!isTauri())throw new Error('안내 시험은 데스크톱 앱에서 실행하십시오. / Run the announcement test in the desktop app.');return invoke('test_announcement');},
 subscribe:async(callback:(outcome:Outcome)=>void):Promise<()=>void>=>isTauri()?listen<Outcome>('switch-finished',event=>callback(event.payload)):()=>{}
 };

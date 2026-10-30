@@ -93,7 +93,15 @@ pub fn announce(resource_dir: &Path, message: &str) -> Result<Option<Option<Stri
     if message.is_empty() || message.contains('\0') {
         return Err("Invalid announcement text".into());
     }
-    let client = Controller::load(&resource_dir.join("nvda/nvdaControllerClient.dll"))?;
+    let library = resource_dir.join("nvda/nvdaControllerClient.dll");
+    #[cfg(debug_assertions)]
+    let library = if library.exists() {
+        library
+    } else {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("vendor/nvda-controller/nvdaControllerClient.dll")
+    };
+    let client = Controller::load(&library)?;
     let running = unsafe { (client.test)() };
     if running == 1722 {
         return Ok(None);

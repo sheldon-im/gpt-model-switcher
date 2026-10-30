@@ -6,6 +6,7 @@ export function App(){
  const [settings,setSettings]=useState<Settings>();const [status,setStatus]=useState<Status>();
  const [history,setHistory]=useState<Outcome[]>([]);
  const [error,setError]=useState('');const [notice,setNotice]=useState('');const [saving,setSaving]=useState(false);
+ const [testing,setTesting]=useState(false);const [testInfo,setTestInfo]=useState('');
  const addButton=useRef<HTMLButtonElement>(null);const ko=settings?.language!=='en';const t=(a:string,b:string)=>ko?a:b;
  useEffect(()=>{api.load().then(setSettings).catch(e=>setError(String(e)));api.status().then(setStatus).catch(e=>setError(String(e)));},[]);
  useEffect(()=>{document.documentElement.lang=ko?'ko':'en';},[ko]);
@@ -18,7 +19,7 @@ export function App(){
  <section aria-labelledby="state-title"><h2 id="state-title">{t('연결 상태','Connection status')}</h2><p>{status?.message||t('확인 중…','Checking…')}</p><button onClick={()=>api.status().then(setStatus).catch(e=>setError(String(e)))}>{t('상태 새로고침','Refresh status')}</button></section>
  <section aria-labelledby="preferences-title"><h2 id="preferences-title">{t('환경 설정','Preferences')}</h2><label>{t('언어','Language')}<select value={settings.language} onChange={e=>setSettings({...settings,language:e.target.value as 'ko'|'en'})}><option value="ko">한국어</option><option value="en">English</option></select></label>
  <label className="check"><input type="checkbox" checked={settings.visual_notifications} onChange={e=>setSettings({...settings,visual_notifications:e.target.checked})}/>{t('화면 알림','Visual notifications')}</label>
- <label className="check"><input type="checkbox" checked={settings.screen_reader_notifications} onChange={e=>setSettings({...settings,screen_reader_notifications:e.target.checked})}/>{t('스크린 리더 안내','Screen reader announcements')}</label></section>
+ <label className="check"><input type="checkbox" checked={settings.screen_reader_notifications} onChange={e=>setSettings({...settings,screen_reader_notifications:e.target.checked})}/>{t('스크린 리더 안내','Screen reader announcements')}</label><button disabled={testing||!settings.screen_reader_notifications} onClick={async()=>{setTesting(true);setTestInfo('');setError('');try{const result=await api.testAnnouncement();setTestInfo(result.warning||t('시험 안내를 보냈습니다. 실제로 들리는지 확인하십시오.','Test announcement sent. Check that you can hear it.'));}catch(e){setError(String(e));}finally{setTesting(false);}}}>{t('음성 안내 시험','Test voice feedback')}</button><p>{t('설정을 저장한 뒤 시험하십시오. 모델을 바꾸지 않고 짧은 안내를 한 번 보냅니다.','Save settings before testing. Sends one short announcement without changing the model.')}</p><p>{testInfo}</p></section>
  <section id="presets" aria-labelledby="presets-title"><h2 id="presets-title">{t('프리셋','Presets')}</h2><p>{t('앱 모델 목록에 있는 정확한 모델 ID를 입력하십시오. 포커스 없는 연결을 지원하는 로컬 대화에서 사용할 수 있습니다.','Enter an exact model ID from the app catalog. Requires a local conversation supporting the focus-free connection.')}</p>
  {settings.presets.map((p,i)=><fieldset key={p.id}><legend>{i+1}. {p.name||t('새 프리셋','New preset')}</legend><div className="grid">
  <label>{t('이름','Name')}<input aria-label={`${i+1} ${t('이름','Name')}`} value={p.name} onChange={e=>update(p.id,{name:e.target.value})}/></label>

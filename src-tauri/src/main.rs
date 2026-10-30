@@ -7,12 +7,29 @@ use tauri::{
 };
 mod desktop_ipc;
 mod notifications;
-#[cfg(windows)] mod nvda;
+#[cfg(windows)]
+mod nvda;
 mod platform;
 mod quiet_switch;
 mod runtime;
 use runtime::*;
 fn main() {
+    #[cfg(windows)]
+    if std::env::args().any(|a| a == "--test-announcement") {
+        let dir = std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let before = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+        let result = nvda::announce(&dir, notifications::test_message("ko")).map(|attempt|match attempt{Some(warning)=>serde_json::json!({"backend":"nvda-controller","speech_accepted":true,"braille_accepted":warning.is_none(),"warning":warning}),None=>serde_json::json!({"backend":"unavailable","speech_accepted":false})});
+        let after = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+        println!(
+            "{}",
+            serde_json::json!({"nvda":result,"foreground_preserved":before==after})
+        );
+        return;
+    }
     if std::env::args().any(|a| a == "--inspect") {
         println!("{}", serde_json::to_string(&platform::inspect()).unwrap());
         return;
@@ -98,6 +115,7 @@ fn main() {
             save_settings,
             get_status,
             get_history,
+            test_announcement,
             apply_preset
         ])
         .run(tauri::generate_context!())

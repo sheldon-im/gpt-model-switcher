@@ -11,8 +11,8 @@ import json, subprocess
 helper = 'target/bridge-tests/macos-bridge-tests'
 def run(*args):
     return json.loads(subprocess.check_output([helper, *args], text=True, timeout=5))
-assert run('self-test')['passed'] == 14
+assert run('self-test')['passed'] == 18
 for args in [('check',), ('check', '{}'), ('check', 'null'), ('check', '{'), ('check', '[]')]:
     assert 'error' in run(*args), args
-print('Swift bridge: 14 synthetic checks and 5 malformed-request checks passed. No AX or model writes.')
+print('Swift bridge: 18 synthetic checks and 5 malformed-request checks passed. No AX or model writes.')
 PY

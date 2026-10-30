@@ -6,6 +6,10 @@ func emit(_ value: Any) {
     guard JSONSerialization.isValidJSONObject(value), let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]), let text = String(data: data, encoding: .utf8) else { return }
     print(text); fflush(stdout)
 }
+func requestAccessibility() -> Bool {
+    let options=[kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary
+    return AXIsProcessTrustedWithOptions(options)
+}
 func supported(_ app: NSRunningApplication?) -> Bool {
     guard let app = app, let id = app.bundleIdentifier else { return false }
     return ["com.openai.chat", "com.openai.codex", "com.openai.chatgpt", "dev.openai.codex"].contains(id)
@@ -15,6 +19,7 @@ func attr(_ element: AXUIElement, _ key: String) -> CFTypeRef? {
 }
 func string(_ e: AXUIElement, _ key: String) -> String { attr(e,key) as? String ?? "" }
 func role(_ e: AXUIElement) -> String { string(e,kAXRoleAttribute) }
+func isSelectionControl(_ role:String) -> Bool { [kAXButtonRole,kAXPopUpButtonRole].contains(role) }
 func name(_ e: AXUIElement) -> String { let title=string(e,kAXTitleAttribute);return title.isEmpty ? string(e,kAXDescriptionAttribute) : title }
 func nodes(_ root: AXUIElement) -> [AXUIElement] {
     var queue=[root];var result=[AXUIElement]();var index=0
@@ -50,8 +55,8 @@ func snapshot() throws -> [String:Any] {
     guard let windows = attr(application,kAXWindowsAttribute) as? [AXUIElement], windows.count == 1 else {
         throw BridgeError.message("Cannot uniquely identify one target window / 대상 창을 하나로 확정하지 못했습니다.")
     }
-    let all=nodes(root);let pickers=all.filter {role($0)==kAXButtonRole && parseSelection(name($0)) != nil}
-    let permissions=all.filter {role($0)==kAXButtonRole && ["권한 변경","Change permissions"].contains(name($0))}
+    let all=nodes(root);let pickers=all.filter {isSelectionControl(role($0)) && parseSelection(name($0)) != nil}
+    let permissions=all.filter {isSelectionControl(role($0)) && ["권한 변경","Change permissions"].contains(name($0))}
     guard permissions.count==1, !all.contains(where:{["클라우드 채팅","Cloud chat","원격 채팅","Remote chat"].contains(name($0))}) else {throw BridgeError.message("Cannot verify a local work conversation / 로컬 작업 대화임을 확인하지 못했습니다.")}
     guard pickers.count==1,let selection=parseSelection(name(pickers[0])) else {throw BridgeError.message("Cannot uniquely identify model and reasoning control / 모델 버튼을 식별할 수 없습니다.")}
     let busy=all.contains {role($0)==kAXButtonRole && ["중지","중단","작업 중지","stop","stop generating","stop streaming","stop turn","현재 작업 조정"].contains(name($0).lowercased())}
@@ -124,7 +129,11 @@ func runBridgeTests() throws {
     try require(parseSelection("GPT-6.1 Terra medium")?["effort"] == "medium","English selection")
     try require(parseSelection("GPT-6.1 Sol 매우 높음")?["effort"] == "xhigh","Korean selection")
     try require(parseSelection("Other high") == nil,"unsupported selection accepted")
-    emit(["passed":14,"scope":"synthetic token, focus and selection checks; no AX or model writes"])
+    try require(isSelectionControl("AXPopUpButton"),"macOS popup selection control rejected")
+    try require(isSelectionControl("AXButton"),"legacy button selection control rejected")
+    try require(!isSelectionControl("AXStaticText"),"non-control accepted")
+    try require(parseSelection("GPT-6.1 Sol High")?["effort"] == "high","actual macOS popup label rejected")
+    emit(["passed":18,"scope":"synthetic token, focus and selection checks; no AX or model writes"])
 }
 #endif
 let args=Array(CommandLine.arguments.dropFirst())
@@ -133,8 +142,8 @@ do {
  switch args.first {
  case "access": emit(["granted":AXIsProcessTrusted()])
  case "request-access":
-    let options=[kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary
-    emit(["granted":AXIsProcessTrustedWithOptions(options)])
+    emit(["granted":requestAccessibility()])
+    RunLoop.current.run(until:Date().addingTimeInterval(0.25))
  case "open-access-settings":
     guard let url=URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"), NSWorkspace.shared.open(url) else {
         throw BridgeError.message("Cannot open Accessibility settings / 손쉬운 사용 권한 설정을 열지 못했습니다.")
@@ -150,6 +159,8 @@ do {
  case "foreground": emit(["active":supported(NSWorkspace.shared.frontmostApplication)])
  case "watch":
     let parent=getppid()
+    // Keep the requesting process alive while macOS presents its asynchronous prompt.
+    _ = requestAccessibility()
     emit(["active":supported(NSWorkspace.shared.frontmostApplication)])
     _ = NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didActivateApplicationNotification,object:nil,queue:.main){_ in emit(["active":supported(NSWorkspace.shared.frontmostApplication)])}
     _ = Timer.scheduledTimer(withTimeInterval:1,repeats:true){_ in if kill(parent,0) != 0 {exit(0)}}

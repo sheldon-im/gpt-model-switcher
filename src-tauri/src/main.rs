@@ -1,5 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use switcher_core::Settings;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -10,7 +9,31 @@ mod notifications;
 mod platform;
 mod quiet_switch;
 mod runtime;
+mod launch;
 use runtime::*;
+fn handle_launch(app: &tauri::AppHandle, args: &[String], initial: bool) {
+    match launch::action(args, initial) {
+        Ok(launch::Action::Settings) => {
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                if let Some(w) = handle.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            });
+        }
+        Ok(launch::Action::Apply(id)) => {
+            let handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(message) = apply_preset(handle.clone(), id).await {
+                    publish(&handle, switcher_core::switching::Outcome {success:false,message,actual:None,restored:false});
+                }
+            });
+        }
+        Ok(launch::Action::Background) => {}
+        Err(message) => publish(app, switcher_core::switching::Outcome {success:false,message,actual:None,restored:false}),
+    }
+}
 fn main() {
     if std::env::args().any(|a| a == "--inspect") {
         println!("{}", serde_json::to_string(&platform::inspect()).unwrap());
@@ -20,34 +43,20 @@ fn main() {
         println!("{}", serde_json::to_string(&platform::diagnose()).unwrap());
         return;
     }
-    if let Some(id) = std::env::args().find_map(|a| a.strip_prefix("--apply=").map(str::to_owned)) {
-        let settings = Settings::default();
-        if let Some(p) = settings.presets.iter().find(|p| p.id == id) {
-            println!("{}", serde_json::to_string(&platform::switch(p)).unwrap());
-        }
+    if std::env::args().any(|a| a == "--accessibility-status") {
+        println!("{}", serde_json::to_string(&platform::accessibility(false)).unwrap());
         return;
     }
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            handle_launch(app, &args, false);
         }))
         .plugin(shortcut_plugin())
         .setup(|app| {
             let path = app.path().app_config_dir()?.join("settings.json");
             app.manage(AppState::new(path));
             notifications::setup(app.handle())?;
-            // The OS presents its request; only the user can grant access.
-            #[cfg(target_os="macos")]
-            std::thread::spawn(|| { let _ = platform::accessibility(true); });
-            if !std::env::args().any(|a| a == "--background") {
-                if let Some(w) = app.get_webview_window("main") {
-                    w.show()?;
-                    w.set_focus()?;
-                }
-            }
+            handle_launch(app.handle(), &std::env::args().collect::<Vec<_>>(), true);
             if std::env::args().any(|a| a == "--fixture") {
                 let w = app
                     .get_webview_window("main")

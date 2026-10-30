@@ -3,11 +3,11 @@ use std::{path::PathBuf,sync::{Mutex,atomic::{AtomicBool,Ordering}}};
 use switcher_core::{Settings,Preset,switching::Outcome};
 use tauri::{AppHandle,Manager,Emitter};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt,Shortcut,ShortcutState};
-pub struct AppState{pub settings:Mutex<Settings>,pub path:PathBuf,pub load_error:Option<String>,pub busy:AtomicBool,pub bindings:Mutex<Option<String>>,pub history:Mutex<Vec<Outcome>>,gate:Mutex<()>}
-impl AppState{pub fn new(path:PathBuf)->Self{let loaded=Settings::load(&path);Self{settings:Mutex::new(loaded.clone().unwrap_or_default()),path,load_error:loaded.err(),busy:AtomicBool::new(false),bindings:Mutex::new(None),history:Mutex::new(Vec::new()),gate:Mutex::new(())}}}
+pub struct AppState{pub settings:Mutex<Settings>,pub path:PathBuf,pub load_error:Option<String>,pub busy:AtomicBool,pub target_active:AtomicBool,pub bindings:Mutex<Option<String>>,pub history:Mutex<Vec<Outcome>>,gate:Mutex<()>}
+impl AppState{pub fn new(path:PathBuf)->Self{let loaded=Settings::load(&path);Self{settings:Mutex::new(loaded.clone().unwrap_or_default()),path,load_error:loaded.err(),busy:AtomicBool::new(false),target_active:AtomicBool::new(false),bindings:Mutex::new(None),history:Mutex::new(Vec::new()),gate:Mutex::new(())}}}
 fn shortcut(p:&Preset)->&str{if cfg!(target_os="macos"){&p.macos_shortcut}else{&p.windows_shortcut}}
 pub fn sync_shortcuts(app:&AppHandle,active:bool){
- let state=app.state::<AppState>();let Ok(_gate)=state.gate.lock()else{return};
+ let state=app.state::<AppState>();state.target_active.store(active,Ordering::SeqCst);let Ok(_gate)=state.gate.lock()else{return};
  let result=(||{app.global_shortcut().unregister_all().map_err(|e|e.to_string())?;if state.load_error.is_some(){return Err("Settings file needs repair / 설정 파일을 확인하십시오.".into())}
  if !active{return Ok(())}let settings=state.settings.lock().map_err(|e|e.to_string())?.clone();
  for p in &settings.presets{app.global_shortcut().register(shortcut(p)).map_err(|e|format!("단축키 등록 실패 / Shortcut conflict: {} ({e})",shortcut(p)))?;}Ok::<_,String>(())})();
@@ -55,7 +55,7 @@ pub fn publish(app:&AppHandle,outcome:Outcome){
 }
 pub fn shortcut_plugin()->tauri::plugin::TauriPlugin<tauri::Wry>{
  tauri_plugin_global_shortcut::Builder::new().with_handler(|app,key,event|{
- if event.state()!=ShortcutState::Pressed || !platform::active(){return}
+ if event.state()!=ShortcutState::Pressed || !app.state::<AppState>().target_active.load(Ordering::SeqCst){return}
  let preset={let state=app.state::<AppState>();let Ok(settings)=state.settings.lock()else{return};settings.presets.iter().find(|p|shortcut(p).parse::<Shortcut>().ok().as_ref()==Some(key)).map(|p|p.id.clone())};
  if let Some(id)=preset{let app=app.clone();tauri::async_runtime::spawn(async move{let _=apply_preset(app,id).await;});}
  }).build()

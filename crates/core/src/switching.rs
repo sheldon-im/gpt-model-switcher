@@ -13,8 +13,8 @@ pub trait Target {
 pub fn apply(target:&mut impl Target,p:&Preset)->Outcome{
  let before=(||{target.check()?;if target.busy()?{return Err("응답 생성 중에는 전환할 수 없습니다. / Cannot switch during generation.".into())}target.read()})();
  let before=match before{Ok(v)=>v,Err(e)=>return Outcome{success:false,message:e,actual:None,restored:false}};
- let result=(||{if !same_model(&before.model,&p.model){target.check()?;target.model(&p.model)?;}
-  let current=target.read()?;if current.effort!=p.effort{target.check()?;target.effort(&p.effort)?;}
+ let result=(||{if !same_model(&before.model,&p.model){target.check()?;target.model(&p.model).map_err(|e|format!("Model / 모델: {e}"))?;}
+  let current=target.read()?;if current.effort!=p.effort{target.check()?;target.effort(&p.effort).map_err(|e|format!("Reasoning / 추론: {e}"))?;}
   target.check()?;let actual=target.read()?;if !actual.matches(p){return Err("선택값 검증에 실패했습니다. / Selection verification failed.".into())}
   target.finish()?;let final_value=target.read()?;if !final_value.matches(p){return Err("포커스 복귀 후 선택값이 달라졌습니다. / Selection changed after focus restoration.".into())}Ok(final_value)})();
  match result{Ok(actual)=>Outcome{success:true,message:format!("{} · {}",actual.model,actual.effort),actual:Some(actual),restored:false},Err(e)=>{

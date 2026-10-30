@@ -16,6 +16,8 @@ tauri-runtime = "=2.11.1"
 tauri-runtime-wry = "=2.11.1"
 tauri-utils = "=2.9.1"
 tauri-macros = "=2.6.1"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_Threading", "Win32_System_Variant", "Win32_UI_Accessibility", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_LibraryLoader"] }

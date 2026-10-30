@@ -1,0 +1,7 @@
+let model='GPT-6.1 Sol',effort='high';const models=['GPT-6.1 Sol','GPT-6.1 Terra'];const efforts=['low','medium','high','xhigh'];
+let events=[];document.addEventListener('keydown',e=>{events.push(e.key+' on '+document.activeElement?.textContent?.slice(0,35));document.querySelector('#event-log').textContent=events.slice(-8).join(' | ')});
+const picker=document.querySelector('#picker'),menu=document.querySelector('#menu'),values=document.querySelector('#values');
+function render(){picker.textContent=model+' '+effort[0].toUpperCase()+effort.slice(1);values.textContent=picker.textContent}
+function button(name,action){const b=document.createElement('button');b.setAttribute('role','menuitem');b.textContent=name;b.onclick=action;menu.append(b);return b}
+function main(){menu.replaceChildren();button('Choose model',()=>{menu.replaceChildren();models.forEach(m=>button(m,()=>{model=m;render();menu.hidden=true}))});const power=button('Power',()=>{});power.setAttribute('aria-keyshortcuts','ArrowLeft ArrowRight');power.addEventListener('keydown',e=>{if(e.key==='Enter'){menu.hidden=true;return}if(!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();effort=efforts[Math.max(0,Math.min(efforts.length-1,efforts.indexOf(effort)+(e.key==='ArrowRight'?1:-1)))];render()})}
+picker.onclick=()=>{menu.hidden=!menu.hidden;if(!menu.hidden)main()};document.addEventListener('keydown',e=>{if(e.key==='Escape'){menu.hidden=true;picker.focus()}});document.querySelector('#busy').onchange=e=>{document.querySelector('#stop').hidden=!e.target.checked};render();

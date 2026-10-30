@@ -3,13 +3,14 @@ use switcher_core::{normalized,Preset,switching::{Target,Outcome,apply}};
 use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput,INPUT,INPUT_0,INPUT_KEYBOARD,KEYBDINPUT,VK_ESCAPE,KEYEVENTF_KEYUP};
 use windows::Win32::UI::Input::KeyboardAndMouse::{VIRTUAL_KEY,VK_LEFT,VK_RIGHT,VK_RETURN};
 impl Session {
- fn key(&self,key:VIRTUAL_KEY)->Result<(),String>{self.check()?;unsafe{let inputs=[INPUT{r#type:INPUT_KEYBOARD,Anonymous:INPUT_0{ki:KEYBDINPUT{wVk:key,..Default::default()}}},INPUT{r#type:INPUT_KEYBOARD,Anonymous:INPUT_0{ki:KEYBDINPUT{wVk:key,dwFlags:KEYEVENTF_KEYUP,..Default::default()}}}];if SendInput(&inputs,std::mem::size_of::<INPUT>() as i32)!=2{return Err("Key input failed".into())}Ok(())}}
+ fn key(&self,key:VIRTUAL_KEY)->Result<(),String>{self.check()?;unsafe{let tid=GetWindowThreadProcessId(self.hwnd,None);let mut info=GUITHREADINFO{cbSize:std::mem::size_of::<GUITHREADINFO>() as u32,..Default::default()};GetGUIThreadInfo(tid, &mut info).map_err(err)?;if info.hwndFocus.0.is_null()||(!IsChild(self.hwnd,info.hwndFocus).as_bool()&&info.hwndFocus!=self.hwnd){return Err("Keyboard focus left target window".into())}let scan=windows::Win32::UI::Input::KeyboardAndMouse::MapVirtualKeyW(key.0 as u32,windows::Win32::UI::Input::KeyboardAndMouse::MAPVK_VK_TO_VSC);let bits=1|((scan as isize)<<16)|if [VK_LEFT,VK_RIGHT].contains(&key){1<<24}else{0};PostMessageW(Some(info.hwndFocus),WM_KEYDOWN,windows::Win32::Foundation::WPARAM(key.0 as usize),windows::Win32::Foundation::LPARAM(bits)).map_err(err)?;PostMessageW(Some(info.hwndFocus),WM_KEYUP,windows::Win32::Foundation::WPARAM(key.0 as usize),windows::Win32::Foundation::LPARAM(bits|0xc0000000)).map_err(err)?;Ok(())}}
  fn adjust_power(&self,effort:&str)->Result<(),String>{
   self.open_picker()?;let initial=self.read()?;let rank=|e:&str|switcher_core::EFFORTS.iter().position(|v|*v==e).ok_or("Unknown effort");
   let target=rank(effort)?;for _ in 0..8{let before=self.read()?;if before.effort==effort{return self.key(VK_RETURN)}
    if !switcher_core::same_model(&before.model,&initial.model){return Err("Power control changed model; restoring selection / 파워가 모델을 변경하여 복구합니다.".into())}
    let control=self.find_choice(&["파워","Power","Reasoning effort","추론 수준"] )?.ok_or("No accessible reasoning control / 추론 컨트롤을 찾지 못했습니다.")?;
-   unsafe{self.check()?;control.SetFocus().map_err(err)?;if !self.ui.CompareElements(&control,&self.ui.GetFocusedElement().map_err(err)?).map_err(err)?.as_bool(){return Err("Power control focus verification failed".into())}}
+   unsafe{self.check()?;control.SetFocus().map_err(err)?;if let Ok(legacy)=control.GetCurrentPatternAs::<IUIAutomationLegacyIAccessiblePattern>(UIA_LegacyIAccessiblePatternId){let _=legacy.Select(1);}}
+   self.wait_for(||unsafe{Ok(control.CurrentHasKeyboardFocus().unwrap_or_default().as_bool()||self.ui.CompareElements(&control,&self.ui.GetFocusedElement().map_err(err)?).map_err(err)?.as_bool())}).map_err(|e|unsafe{format!("Power focus: {e}; focused={}",self.ui.GetFocusedElement().and_then(|e|e.CurrentName()).unwrap_or_default())})?;
    self.key(if rank(&before.effort)?<target{VK_RIGHT}else{VK_LEFT})?;
    self.wait_for(||Ok(Session::read(self).is_ok_and(|s|s!=before)))?;
   }Err("Requested effort is not available / 요청한 추론 수준을 선택할 수 없습니다.".into())
@@ -57,10 +58,7 @@ impl Session {
  pub fn submenu_names(&self,aliases:&[&str])->Result<Vec<String>,String>{self.open_picker()?;let e=self.find_choice(aliases)?.ok_or("Submenu missing")?;self.invoke(&e)?;std::thread::sleep(std::time::Duration::from_millis(200));unsafe{Ok(self.choices()?.iter().filter_map(|e|e.CurrentName().ok().map(|s|s.to_string())).collect())}}
  pub fn submenu_dump(&self)->Result<Vec<String>,String>{self.open_picker()?;if let Some(e)=self.find_choice(&["파워","Power"])?{self.invoke(&e)?;}std::thread::sleep(std::time::Duration::from_millis(150));unsafe{let cond=self.ui.CreateTrueCondition().map_err(err)?;let mut lines=Vec::new();for overlay in self.overlays()?{let all=overlay.FindAll(TreeScope_Descendants,&cond).map_err(err)?;for i in 0..all.Length().map_err(err)?{let e=all.GetElement(i).map_err(err)?;lines.push(format!("{:?} | {} | {}",e.CurrentControlType().ok(),e.CurrentAriaRole().unwrap_or_default(),e.CurrentName().unwrap_or_default()));}}Ok(lines)}}
  pub fn current_efforts_dump(&self)->Result<Vec<String>,String>{let current=self.read()?;self.choose(&[&current.model],&["모델 선택","Choose model","Select model"])?;self.submenu_dump()}
- fn escape(&self)->Result<(),String>{self.check()?;unsafe{
-  let inputs=[INPUT{r#type:INPUT_KEYBOARD,Anonymous:INPUT_0{ki:KEYBDINPUT{wVk:VK_ESCAPE,..Default::default()}}},INPUT{r#type:INPUT_KEYBOARD,Anonymous:INPUT_0{ki:KEYBDINPUT{wVk:VK_ESCAPE,dwFlags:KEYEVENTF_KEYUP,..Default::default()}}}];
-  if SendInput(&inputs,std::mem::size_of::<INPUT>() as i32)!=2{return Err("Could not dismiss menu".into())}Ok(())
- }}
+ fn escape(&self)->Result<(),String>{self.key(VK_ESCAPE)}
 }
 impl Target for Session{
  fn check(&mut self)->Result<(),String>{Session::check(self)}
@@ -68,7 +66,7 @@ impl Target for Session{
  fn read(&mut self)->Result<switcher_core::Selection,String>{Session::read(self)}
  fn model(&mut self,v:&str)->Result<(),String>{
   self.choose(&[v],&["모델 선택","Choose model","Select model","Advanced","고급","Models","모델","More models","다른 모델"])?;
-  self.wait_for(||Ok(Session::read(self).is_ok_and(|s|switcher_core::same_model(&s.model,v))))
+  self.wait_for(||Ok(Session::read(self).is_ok_and(|s|switcher_core::same_model(&s.model,v))&&self.overlays()?.is_empty()))
  }
  fn effort(&mut self,v:&str)->Result<(),String>{
   let names=match v{"medium"=>vec!["Medium","중간"],"high"=>vec!["High","높음"],"low"=>vec!["Low","낮음"],"xhigh"=>vec!["Extra High","xhigh","매우 높음"],"none"=>vec!["None","없음"],"max"=>vec!["Max","최대"],"ultra"=>vec!["Ultra"],"minimal"=>vec!["Minimal"],_=>return Err("Unsupported effort".into())};
@@ -76,7 +74,7 @@ impl Target for Session{
   if let Some(item)=self.find_choice(&names)?{self.invoke(&item)?;}else{self.adjust_power(v)?;}
   self.wait_for(||Ok(Session::read(self).is_ok_and(|s|s.effort==v)))
  }
- fn finish(&mut self)->Result<(),String>{self.check()?;if !self.overlays()?.is_empty(){self.escape()?}
+ fn finish(&mut self)->Result<(),String>{self.check()?;if !self.overlays()?.is_empty(){self.escape()?;self.wait_for(||Ok(self.overlays()?.is_empty()))?;}
   unsafe{let edits=self.elements(UIA_EditControlTypeId)?;let composers:Vec<_>=edits.into_iter().filter(|e|e.CurrentName().ok().is_some_and(|n|{let s=n.to_string().to_lowercase();s.contains("chatgpt")||s.contains("message")||s.contains("메시지")||s.contains("질문")})).collect();if composers.len()!=1{return Err("Cannot uniquely restore composer focus / 입력창 포커스 복귀를 확인할 수 없습니다.".into())}self.check()?;composers[0].SetFocus().map_err(err)}
  }
 }

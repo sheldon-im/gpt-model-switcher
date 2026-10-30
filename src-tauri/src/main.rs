@@ -7,6 +7,7 @@ use tauri::{
 };
 mod desktop_ipc;
 mod notifications;
+#[cfg(windows)] mod nvda;
 mod platform;
 mod quiet_switch;
 mod runtime;

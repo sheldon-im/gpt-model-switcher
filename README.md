@@ -8,7 +8,19 @@
 
 ## 일단 설치해서 써보기
 
-[0.1.5 다운로드](https://github.com/sheldon-im/gpt-model-switcher/releases/tag/v0.1.5)에서 Mac용 파일을 받을 수 있습니다. **Apple Silicon Mac, macOS 13 이상**이 필요합니다. 현재 릴리스에 올린 설치 파일은 Mac용입니다.
+- [Mac 0.1.5 다운로드](https://github.com/sheldon-im/gpt-model-switcher/releases/tag/v0.1.5): Apple Silicon Mac, macOS 13 이상
+- [Windows 0.1.5 시험 릴리즈 다운로드](https://github.com/sheldon-im/gpt-model-switcher/releases/tag/v0.1.5-windows): Windows 11 x64
+
+### Windows
+
+1. `gpt-model-switcher-0.1.5-windows-x64-test-setup.exe`를 받아 실행하십시오. 코드 서명되지 않은 시험 버전이므로 Windows에서 보안 확인이 표시될 수 있습니다.
+2. 설치한 **GPT Model Switcher**를 실행하십시오. 이전 버전이 실행 중이라면 먼저 알림 영역 메뉴에서 **종료 / Quit**를 선택해 주세요.
+3. 설치 없이 사용하려면 `gpt-model-switcher-0.1.5-windows-x64-test.zip`을 폴더 전체로 풀고 `gpt-model-switcher.exe`를 실행하십시오. NVDA 안내에 필요한 `nvda` 폴더도 함께 보관해야 합니다.
+4. 설정 창을 닫아도 알림 영역에서 계속 실행됩니다. Win+B로 알림 영역에 이동한 뒤 방향키로 앱을 찾고 Shift+F10으로 메뉴를 열어 **설정 / Settings** 또는 **종료 / Quit**를 선택할 수 있습니다. 아이콘이 숨겨져 있으면 숨겨진 아이콘 메뉴를 먼저 여십시오.
+
+Windows 자동 검사와 패키지 빌드는 통과했습니다. 사용자가 조용한 모델 전환과 별도 NVDA 음성 시험을 확인했으나, 실제 프리셋·동일 프리셋 재입력의 음성/점자 등 전체 실사용 검증은 남아 있습니다. 자세한 범위는 릴리즈의 `WINDOWS_VERIFICATION-0.1.5.json`에 있습니다.
+
+### Mac
 
 1. `gpt-model-switcher-0.1.5-macos-arm64-test.dmg`를 받아 여세요. ZIP이 편하시면 `gpt-model-switcher-0.1.5-macos-arm64.zip`을 받아 압축을 풀어도 됩니다.
 2. 안에 있는 **GPT Model Switcher**를 응용 프로그램 폴더로 복사하십시오. 이전 버전이 실행 중이라면 먼저 메뉴 막대에서 **종료**를 선택해 주세요.
@@ -21,10 +33,10 @@ Apple의 앱 인증은 받지 않은 버전이라 처음 열 때 macOS의 보안
 
 ChatGPT에서 기존 대화를 열고, 답변이 끝난 상태에서 입력창에 포커스를 둔 뒤 아래 단축키를 누르십시오.
 
-| 용도 | 모델 | 추론 수준 | Mac 단축키 |
-| --- | --- | --- | --- |
-| 일상용 | GPT-6.1 Terra | medium | Command+Option+Shift+1 |
-| 코딩용 | GPT-6.1 Sol | high | Command+Option+Shift+2 |
+| 용도 | 모델 | 추론 수준 | Windows 단축키 | Mac 단축키 |
+| --- | --- | --- | --- | --- |
+| 일상용 | GPT-6.1 Terra | medium | Ctrl+Alt+Shift+1 | Command+Option+Shift+1 |
+| 코딩용 | GPT-6.1 Sol | high | Ctrl+Alt+Shift+2 | Command+Option+Shift+2 |
 
 이름은 일상용과 코딩용으로 붙였지만, 꼭 그 용도로만 쓸 필요는 없습니다. 설정에서 이름과 모델, 추론 수준, 단축키를 원하는 조합으로 바꿀 수 있습니다. 모델은 현재 계정에서 사용할 수 있는 것을 지정해 주세요.
 
@@ -32,11 +44,11 @@ ChatGPT에서 기존 대화를 열고, 답변이 끝난 상태에서 입력창�
 
 ## 설정을 바꾸고 싶을 때
 
-메뉴 막대의 **GPT Model Switcher → 설정 / Settings**를 여십시오. Tab과 Shift+Tab으로 항목을 이동하고, 편집을 마치면 **저장**을 눌러 주시면 됩니다.
+Windows는 알림 영역, Mac은 메뉴 막대의 **GPT Model Switcher → 설정 / Settings**를 여십시오. Tab과 Shift+Tab으로 항목을 이동하고, 편집을 마치면 **저장**을 눌러 주시면 됩니다.
 
 - 자주 쓰는 모델·추론 수준과 단축키를 바꿀 수 있습니다. 모델 항목에는 `gpt-6.1-terra`처럼 모델 ID를 입력합니다.
 - 화면 알림과 스크린 리더 안내를 각각 켜거나 끌 수 있습니다. Mac에서는 화면 알림이 기본으로 꺼져 있습니다.
 - **음성 안내 시험**으로 모델을 바꾸지 않고 안내만 들어볼 수 있습니다. 안내 설정을 바꿨다면 먼저 저장해 주세요.
 - **최근 전환 결과**에서 이번 실행 중 어떤 전환이 있었는지 확인할 수 있습니다.
 
-설정 창을 닫아도 앱은 계속 실행됩니다. 앱을 완전히 종료하려면 메뉴 막대에서 **종료 / Quit**를 선택하십시오. 로그인할 때 자동으로 실행되도록 등록하지는 않습니다.
+설정 창을 닫아도 앱은 계속 실행됩니다. 앱을 완전히 종료하려면 Windows 알림 영역 또는 Mac 메뉴 막대에서 **종료 / Quit**를 선택하십시오. 로그인할 때 자동으로 실행되도록 등록하지는 않습니다.

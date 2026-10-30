@@ -2,11 +2,13 @@
 use std::{path::PathBuf,sync::Mutex};
 use switcher_core::Settings;
 use tauri::{Manager,menu::{Menu,MenuItem},tray::TrayIconBuilder};
+mod platform;
 struct AppState{settings:Mutex<Settings>,path:PathBuf}
 #[tauri::command] fn get_settings(state:tauri::State<AppState>)->Result<Settings,String>{Ok(state.settings.lock().map_err(|e|e.to_string())?.clone())}
 #[tauri::command] fn save_settings(settings:Settings,state:tauri::State<AppState>)->Result<(),String>{let mut guard=state.settings.lock().map_err(|e|e.to_string())?;settings.save(&state.path)?;*guard=settings;Ok(())}
-#[tauri::command] fn get_status()->serde_json::Value{serde_json::json!({"active":false,"available":false,"message":"플랫폼 연결 준비 중 / Platform adapter not connected"})}
+#[tauri::command] async fn get_status()->Result<platform::Status,String>{tauri::async_runtime::spawn_blocking(platform::inspect).await.map_err(|e|e.to_string())}
 fn main(){
+    if std::env::args().any(|a|a=="--inspect"){println!("{}",serde_json::to_string(&platform::inspect()).unwrap());return;}
     tauri::Builder::default().setup(|app|{
         let path=app.path().app_config_dir()?.join("settings.json");
         let settings=Settings::load(&path).map_err(std::io::Error::other)?;

@@ -1167,6 +1167,7 @@ dependencies = [
  "tauri-runtime",
  "tauri-runtime-wry",
  "tauri-utils",
+ "windows",
 ]
 
 [[package]]

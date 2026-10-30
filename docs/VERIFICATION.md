@@ -1,6 +1,6 @@
 # 검증 상태 · 2026-10-30
 
-수행자: Windows의 Codex. 대상: Windows 11 x64의 로컬 소스 및 설치된 ChatGPT desktop 26.1027.3384.0. 원격 게시·설치·유료 가입·실제 프롬프트 전송은 수행하지 않았습니다.
+수행자: Windows의 Codex. 대상: Windows 11 x64의 로컬 소스 및 설치된 ChatGPT desktop 26.1027.3384.0. 설치·유료 가입·실제 프롬프트 전송은 수행하지 않았습니다. 사용자의 후속 명시적 승인에 따라 `gh`로 [sheldon-im/gpt-model-switcher](https://github.com/sheldon-im/gpt-model-switcher) private 저장소를 만들고 Windows 소스와 커밋 이력을 `main`에 업로드했습니다. `isPrivate=true`를 확인한 뒤 push했습니다. 공개 저장소 전환이나 시험 패키지의 외부 배포는 하지 않았습니다. 기존 Mac 변경분은 아직 병합하지 않았으며 `docs/MAC_SYNC.md`로 인계합니다.
 
 ## 현재 판정
 

@@ -48,31 +48,47 @@ pub fn resolve(title: &str) -> Result<String, String> {
     resolve_in(&db, title)
 }
 pub fn validate_catalog(p: &switcher_core::Preset) -> Result<(), String> {
-    let file = home()?.join("models_cache.codex_work_desktop.json");
-    if std::fs::metadata(&file)
-        .map_err(|_| "Desktop model catalog unavailable")?
-        .len()
-        > 8 * 1024 * 1024
-    {
-        return Err("Unsupported model catalog size".into());
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs() as i64;
+    validate_catalog_in(&home()?, p, now)
+}
+fn validate_catalog_in(
+    root: &std::path::Path,
+    p: &switcher_core::Preset,
+    now: i64,
+) -> Result<(), String> {
+    // Work-attributed app servers use a scoped cache; local Codex app servers
+    // also use the standard cache. Only fall back when the scoped file is absent.
+    let scoped = root.join("models_cache.codex_work_desktop.json");
+    let file = match scoped.try_exists() {
+        Ok(true) => scoped,
+        Ok(false) => root.join("models_cache.json"),
+        Err(_) => {
+            return Err(
+                "ChatGPT의 모델 목록을 읽지 못했습니다. / Desktop model catalog is unreadable."
+                    .into(),
+            )
+        }
+    };
+    let metadata = std::fs::metadata(&file).map_err(|_| "ChatGPT의 모델 목록 파일을 찾지 못했습니다. ChatGPT를 연 뒤 다시 시도하십시오. / Desktop model catalog unavailable.")?;
+    if !metadata.is_file() || metadata.len() > 8 * 1024 * 1024 {
+        return Err("Unsupported model catalog size or file type".into());
     }
-    let v: Value = serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
+    let value: Value = serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
         .map_err(|_| "Unsupported model catalog format")?;
     let fetched = chrono::DateTime::parse_from_rfc3339(
-        v["fetched_at"]
+        value["fetched_at"]
             .as_str()
             .ok_or("Missing catalog timestamp")?,
     )
     .map_err(|_| "Invalid catalog timestamp")?
     .timestamp();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_secs() as i64;
     if !(0..=86400).contains(&(now - fetched)) {
         return Err("모델 목록이 오래되었습니다. 앱에서 모델 목록을 갱신한 뒤 재시도하십시오. / Desktop model catalog is stale; refresh it in the app and retry.".into());
     }
-    catalog_contains(&v, p)
+    catalog_contains(&value, p)
 }
 fn catalog_contains(v: &Value, p: &switcher_core::Preset) -> Result<(), String> {
     let models = v["models"].as_array().ok_or("Unsupported model catalog")?;
@@ -269,14 +285,20 @@ fn connect(expected_pid: u32) -> Result<Box<dyn Transport>, String> {
     Ok(Box::new(Pipe(file)))
 }
 #[cfg(target_os = "macos")]
-fn connect(_pid: u32) -> Result<Box<dyn Transport>, String> {
+fn connect(pid: u32) -> Result<Box<dyn Transport>, String> {
+    connect_macos_socket(&home()?.join("ipc/ipc.sock"), pid)
+}
+#[cfg(target_os = "macos")]
+fn connect_macos_socket(
+    path: &std::path::Path,
+    expected_pid: u32,
+) -> Result<Box<dyn Transport>, String> {
     use std::os::{
         fd::AsRawFd,
         unix::{fs::MetadataExt, net::UnixStream},
     };
-    let path = home()?.join("ipc/ipc.sock");
-    let meta = std::fs::symlink_metadata(&path)
-        .map_err(|_| "Focus-free desktop connection unavailable")?;
+    let meta =
+        std::fs::symlink_metadata(path).map_err(|_| "Focus-free desktop connection unavailable")?;
     if meta.uid() != unsafe { libc::geteuid() }
         || meta.mode() & 0o077 != 0
         || !std::os::unix::fs::FileTypeExt::is_socket(&meta.file_type())
@@ -291,12 +313,55 @@ fn connect(_pid: u32) -> Result<Box<dyn Transport>, String> {
     {
         return Err("Desktop socket owner mismatch".into());
     }
+    // A socket owned by this user can still belong to another application.
+    // Verify the kernel's peer PID before sending even the initialization frame.
+    let mut peer_pid: libc::pid_t = 0;
+    let mut length = std::mem::size_of_val(&peer_pid) as libc::socklen_t;
+    if unsafe {
+        libc::getsockopt(
+            stream.as_raw_fd(),
+            libc::SOL_LOCAL,
+            libc::LOCAL_PEERPID,
+            (&mut peer_pid as *mut libc::pid_t).cast(),
+            &mut length,
+        )
+    } != 0
+        || length as usize != std::mem::size_of_val(&peer_pid)
+        || peer_pid <= 0
+        || peer_pid as u32 != expected_pid
+    {
+        return Err("Desktop IPC does not belong to foreground app".into());
+    }
     stream.set_nonblocking(true).map_err(|e| e.to_string())?;
     Ok(Box::new(stream))
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_socket_requires_foreground_peer_and_private_permissions() {
+        use std::os::unix::{fs::PermissionsExt, net::UnixListener};
+        let path =
+            PathBuf::from("/private/tmp").join(format!("switcher-{}.sock", uuid::Uuid::new_v4()));
+        let server = UnixListener::bind(&path).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(connect_macos_socket(&path, std::process::id()).is_ok());
+        assert!(connect_macos_socket(&path, std::process::id() + 1)
+            .err()
+            .unwrap()
+            .contains("foreground app"));
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o660)).unwrap();
+        assert!(connect_macos_socket(&path, std::process::id())
+            .err()
+            .unwrap()
+            .contains("permissions"));
+        drop(server);
+        std::fs::remove_file(&path).unwrap();
+        std::fs::write(&path, b"not a socket").unwrap();
+        assert!(connect_macos_socket(&path, std::process::id()).is_err());
+        std::fs::remove_file(&path).unwrap();
+    }
     struct Simulator {
         input: std::io::Cursor<Vec<u8>>,
         pending: Vec<u8>,
@@ -421,6 +486,73 @@ mod tests {
         assert!(resolve_in(&db, "unique").is_err());
         db.execute_batch("UPDATE threads SET archived=1;").unwrap();
         assert!(resolve_in(&db, "unique").is_err());
+    }
+    struct CatalogFixture(PathBuf);
+    impl CatalogFixture {
+        fn new() -> Self {
+            let path =
+                std::env::temp_dir().join(format!("switcher-catalog-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+        fn write(&self, name: &str, fetched: i64) {
+            let value = json!({"fetched_at":chrono::DateTime::from_timestamp(fetched,0).unwrap().to_rfc3339(),
+                "models":[{"slug":"gpt-6.1-terra","visibility":"list","supported_reasoning_levels":[{"effort":"medium"}]}]});
+            std::fs::write(self.0.join(name), value.to_string()).unwrap();
+        }
+    }
+    impl Drop for CatalogFixture {
+        fn drop(&mut self) {
+            // Only remove files this fixture creates; never recursively traverse a temp path.
+            for name in ["models_cache.json", "models_cache.codex_work_desktop.json"] {
+                let _ = std::fs::remove_file(self.0.join(name));
+            }
+            let _ = std::fs::remove_dir(&self.0);
+        }
+    }
+    #[test]
+    fn catalog_supports_standard_cache_and_prefers_scoped_cache() {
+        let f = CatalogFixture::new();
+        let preset = &switcher_core::Settings::default().presets[0];
+        let now = 1_800_000_000;
+        assert!(validate_catalog_in(&f.0, preset, now)
+            .unwrap_err()
+            .contains("모델 목록 파일"));
+        f.write("models_cache.json", now);
+        assert!(validate_catalog_in(&f.0, preset, now).is_ok());
+        f.write("models_cache.codex_work_desktop.json", now);
+        std::fs::write(f.0.join("models_cache.json"), b"broken").unwrap();
+        assert!(validate_catalog_in(&f.0, preset, now).is_ok());
+        f.write("models_cache.json", now);
+        std::fs::write(f.0.join("models_cache.codex_work_desktop.json"), b"broken").unwrap();
+        assert!(validate_catalog_in(&f.0, preset, now)
+            .unwrap_err()
+            .contains("format"));
+    }
+    #[test]
+    fn standard_catalog_keeps_freshness_visibility_and_size_guards() {
+        let f = CatalogFixture::new();
+        let preset = &switcher_core::Settings::default().presets[0];
+        let now = 1_800_000_000;
+        for fetched in [now - 86401, now + 1] {
+            f.write("models_cache.json", fetched);
+            assert!(validate_catalog_in(&f.0, preset, now)
+                .unwrap_err()
+                .contains("stale"));
+        }
+        f.write("models_cache.json", now);
+        let mut unsupported = preset.clone();
+        unsupported.effort = "ultra".into();
+        assert!(validate_catalog_in(&f.0, &unsupported, now).is_err());
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(f.0.join("models_cache.json"))
+            .unwrap()
+            .set_len(8 * 1024 * 1024 + 1)
+            .unwrap();
+        assert!(validate_catalog_in(&f.0, preset, now)
+            .unwrap_err()
+            .contains("size"));
     }
     #[test]
     fn catalog_rejects_unknown_and_hidden_combinations() {

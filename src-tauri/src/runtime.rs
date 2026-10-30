@@ -181,15 +181,22 @@ pub async fn apply_preset(app: AppHandle, id: String) -> Result<Outcome, String>
         }
         let state = worker.state::<AppState>();
         let _guard = Guard(&state.busy);
-        match platform::wait_shortcut_release() {
-            Ok(()) => platform::switch(&preset),
-            Err(e) => Outcome {
-                success: false,
-                already_applied: false,
-                message: e,
-                actual: None,
-                restored: false,
-            },
+        #[cfg(target_os = "macos")]
+        {
+            platform::switch(&preset)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            match platform::wait_shortcut_release() {
+                Ok(()) => platform::switch(&preset),
+                Err(e) => Outcome {
+                    success: false,
+                    already_applied: false,
+                    message: e,
+                    actual: None,
+                    restored: false,
+                },
+            }
         }
     })
     .await

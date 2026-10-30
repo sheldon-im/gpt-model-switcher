@@ -4,11 +4,9 @@
       "dmg",
       "app"
     ],
-    "externalBin": [
-      "native/macos-bridge"
-    ],
     "macOS": {
       "minimumSystemVersion": "13.0",
+      "infoPlist": "Info.macos.plist",
       "signingIdentity": "-"
     }
   }

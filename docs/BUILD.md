@@ -18,10 +18,18 @@ pnpm build
 PowerShell에서 실행합니다.
 
 ```powershell
-pnpm tauri build --bundles nsis
+node node_modules/@tauri-apps/cli/tauri.js build --bundles nsis '--' --locked
 ```
 
 설치본은 `target/release/bundle/nsis/`, 단독 실행 파일은 `target/release/gpt-model-switcher.exe`에 생성됩니다. 코드 서명은 하지 않습니다. 빌드와 실제 설치는 별도입니다.
+
+시험 패키지와 소스 스냅샷·해시·검증 기록을 함께 생성하려면 다음을 실행합니다. 추적 중인 소스가 커밋된 깨끗한 상태여야 하며, 실행 중인 이전 시험 앱을 먼저 종료합니다. 이 명령은 GitHub에 게시하지 않습니다.
+
+```powershell
+powershell -NoProfile -File scripts/package-windows.ps1 -OutputDirectory outputs/windows-release-0.1.5
+```
+
+검증 기록의 `sourceCommit`은 README·패키징 지침까지 포함한 소스 스냅샷입니다. 앱 동작 코드는 Mac `v0.1.5`와 같고 Windows 릴리즈 태그는 `v0.1.5-windows`로 구분합니다. 기존 Mac 태그와 자산을 바꾸지 않습니다. Windows 기록의 과거 실제 앱 검사와 이번 자동검사·빌드는 구분하며 Mac 결과는 별도 릴리즈 기록을 참조합니다.
 
 ZIP을 배포할 때는 실행 파일과 함께 `nvda` 폴더의 DLL·라이선스·대응 소스를 보존하십시오. 공식 NVDA 2026.3 Controller Client의 출처·해시·LGPL 2.1 라이선스와 전체 대응 소스가 해당 폴더에 있습니다.
 

@@ -15,7 +15,7 @@ if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Unexpected version' }
 if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed' }
 & pnpm test 2>&1 | Tee-Object -FilePath (Join-Path $packageWork 'frontend-tests.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed' }
-& pnpm tauri build --bundles nsis
+& node node_modules/@tauri-apps/cli/tauri.js build --bundles nsis '--' --locked
 if ($LASTEXITCODE -ne 0) { throw 'Windows bundle failed' }
 
 $rustText = Get-Content -LiteralPath (Join-Path $packageWork 'cargo-tests.txt') -Raw
@@ -36,15 +36,16 @@ $record = [ordered]@{
   rustTestsPassed = $rustCount; frontendTestsPassed = [int]$frontendCount
   windowsReleaseBuild = 'passed'; nsisBuild = 'passed'
   windowsSigning = (Get-AuthenticodeSignature -LiteralPath $exe).Status.ToString()
-  desktopSettingsRead = 'passed on desktop 26.1027.3384.0; no model mutation'
-  generationGuard = 'passed on actual app; no model mutation'
+  desktopSettingsRead = 'historical Windows check on 2026-10-30 desktop 26.1027.3384.0; not rerun by packaging; no model mutation'
+  generationGuard = 'historical actual-app check on 2026-10-30; not rerun by packaging; no model mutation'
   newRouteActualSwitch = 'user reports quiet switching; exact pairs not independently revalidated'
   NVDA = 'user confirmed 0.1.1 standalone voice test was heard once; actual preset/already-applied feedback and braille still need user verification'
   alreadyApplied = '0.1.2 verified-state repeat handling; writes zero in automated tests; native repeated-key listening pending'
   nvdaControllerVersion = '2026.3, API 3.0, x64, unmodified signed upstream DLL'
-  macOSBuild = 'integrated 0.1.5 requires Mac rebuild; imported Mac 0.1.4 report records successful native build'
-  macSource = '9007544; Mac report Rust32 React7 Swift23 and user-reported switching, not independently rerun on Windows'
-  VoiceOver = 'integrated version not tested'
+  macOSVerification = 'Separate Mac v0.1.5 release records native build and user-confirmed VoiceOver; not independently reproduced on Windows'
+  macOSVerificationUrl = 'https://github.com/sheldon-im/gpt-model-switcher/releases/tag/v0.1.5'
+  releaseTag = "v${version}-windows"
+  releaseScope = 'Private repository Windows test release; unsigned; no installer execution or real preset mutation in packaging'
   currentLimit = 'Private desktop settings protocol; local work conversations only; reject ambiguous identity and unsupported views'
 }
 $recordPath = Join-Path $outputPath '검증-실행결과.json'
@@ -57,6 +58,7 @@ New-Item -ItemType Directory -Path $portable -Force | Out-Null
 Copy-Item -LiteralPath $exe -Destination $portable
 Copy-Item -LiteralPath $nvdaResources -Destination $portable -Recurse
 Copy-Item -LiteralPath (Join-Path $repo 'README.md'),(Join-Path $repo 'docs/VERIFICATION.md'),$recordPath -Destination $portable
+if (Test-Path -LiteralPath (Join-Path $repo 'README.en.md')) { Copy-Item -LiteralPath (Join-Path $repo 'README.en.md') -Destination $portable }
 Compress-Archive -LiteralPath $portable -DestinationPath (Join-Path $outputPath "gpt-model-switcher-${version}-windows-x64-test.zip") -Force
 
 $sourceZip = Join-Path $outputPath "gpt-model-switcher-${version}-macos-source.zip"

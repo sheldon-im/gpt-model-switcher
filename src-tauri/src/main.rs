@@ -3,6 +3,7 @@ use switcher_core::Settings;
 use tauri::{Manager,menu::{Menu,MenuItem},tray::TrayIconBuilder};
 mod platform;
 mod runtime;
+mod desktop_ipc;
 use runtime::*;
 fn main(){
     if std::env::args().any(|a|a=="--inspect"){println!("{}",serde_json::to_string(&platform::inspect()).unwrap());return;}

@@ -1,5 +1,7 @@
 fn main(){
  println!("cargo:rerun-if-changed=native/MacBridge.swift");
+ println!("cargo:rerun-if-changed=tauri.windows.conf.json");
+ println!("cargo:rerun-if-changed=vendor/nvda-controller");
  if std::env::var("CARGO_CFG_TARGET_OS").as_deref()==Ok("macos"){
   assert_eq!(std::env::var("CARGO_CFG_TARGET_ARCH").as_deref(),Ok("aarch64"),"Only Apple Silicon is supported");
   let output="native/macos-bridge-aarch64-apple-darwin";

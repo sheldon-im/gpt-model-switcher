@@ -6,6 +6,15 @@
 
 **시험 후보이며 실사용 검증 완료가 아닙니다.** 메뉴 자동화의 포커스·읽기 문제는 사용자의 실제 NVDA 관찰로 확인된 실패입니다. 이를 해결하기 위해 기본 동작에서 메뉴·키 전송·포커스 설정을 제거했습니다. 새 방식의 실제 NVDA 최종 안내/점자 및 실제 앱 양방향 전환은 재검증 전입니다. Mac 빌드와 VoiceOver 실기는 Mac Codex에게 인계합니다.
 
+## 0.1.1 후속 음성 회귀 수정
+
+사용자는 0.1.0에서 포커스로 인한 소란은 없어졌지만 프리셋 변경 음성이 나오지 않는다고 보고했습니다. 이 보고를 사용자 관찰로 기록하며, 전체 접근성 통과로 확대하지 않습니다. 기존의 숨긴 창 UIA 알림이 실제 NVDA 피드백으로 전달되지 않는 경로를 NVDA 공식 Controller Client 우선 경로로 교체했습니다. UIA가 어느 단계에서 거부되었는지까지 독립 추적한 것은 아닙니다.
+
+- 공식 NV Access 2026.3의 x64 DLL을 다운로드하여 원본 서명 Valid, SHA256 및 공식 소스 태그를 확인했습니다. LGPL 라이선스와 전체 원본 대응 소스를 동봉합니다. 사용자 NVDA 설치/설정을 바꾸지 않습니다.
+- 실제 실행 중인 NVDA 연결 검사 반환값 0을 확인했습니다. 이어 네이티브 실행 파일의 안내 시험에서 음성·점자 요청이 수락됐고 전경 창이 유지됨을 확인했습니다. 요청 수락은 실제 음성 청취·점자 판독의 성공과 구분합니다.
+- 자동 검사는 한 번의 음성/점자 전송, 음성 거부 오류, 점자 실패 후 음성 중복 방지, NVDA 성공 후 UIA 중복 방지, NVDA 부재의 UIA 경로, 보안/접근 오류의 무조건 재시도 방지, 안내 시험 버튼의 포커스·사용자 안내 끄기 존중을 포함합니다.
+- 기본 모델 전환 코드는 변경하지 않았습니다. 프리셋 전환 중 실제 청취 및 Mac/VoiceOver 실기는 계속 별도 확인 대상입니다. 현재 사용자에게 단일 시험 안내의 청취 여부를 확인 요청한 상태입니다.
+
 | 구분 | 확인 결과 | 한계 |
 |---|---|---|
 | 공통 Rust 자동검사 | 설정 보존·단축키 충돌·기존 상태 기계 검사 통과 | 실제 앱/스크린 리더 검사와 다름 |
@@ -27,7 +36,7 @@
 3. 등록 후 대화 소유자의 설정 응답을 읽고 소유자를 고정합니다. 공개되지 않은 IPC 버전이 일치하지 않거나 화면 모델과 설정이 다르면 중단합니다. 앱의 모델 캐시에 해당 조합이 있으며 하루 이내인지 확인합니다. 이 캐시가 실시간 계정 권한을 보장하지는 않습니다.
 4. 모델·추론을 한 요청으로 적용하며 직전 모델/추론의 조건을 함께 전달합니다. 메시지, turn/start, resume, 권한 변경 API는 호출하지 않습니다. null 기본 추론값은 복구 시 명시적 high로 바꾸지 않고 null로 돌립니다.
 5. 실제 화면 선택값과 소유자 설정이 모두 일치해야 성공입니다. 포커스나 문맥이 바뀌면 추가 조작을 중단합니다. 되돌릴 때도 방금 적용한 값이 그대로인지 조건을 확인합니다.
-6. 화면 알림은 Windows SW_SHOWNOACTIVATE, Mac orderFront를 사용하며 별도 포커스를 받지 않습니다. 스크린 리더에는 Windows UIA notification / Mac accessibility announcement 한 건만 요청합니다. 웹 결과 목록과 화면 알림은 같은 결과를 live region으로 중복 읽지 않습니다. API 호출 성공과 실제 음성 전달은 별도 판정입니다.
+6. 화면 알림은 Windows SW_SHOWNOACTIVATE, Mac orderFront를 사용하며 별도 포커스를 받지 않습니다. NVDA가 실행 중이면 공식 Controller Client로 최종 음성 1건과 점자 1건을 전달합니다. NVDA가 없을 때만 일반 Windows UIA 안내를 시도합니다. Mac은 accessibility announcement를 사용합니다. 웹 결과 목록과 화면 알림은 같은 결과를 live region으로 중복 읽지 않습니다. API 호출 성공과 실제 음성 전달은 별도 판정입니다.
 
 ## 사용자 실기 확인표
 
@@ -48,5 +57,6 @@ Windows UIA 초기 문서 읽기 실패 시 COM 정리가 중복되는 경로를
 - [Tauri global shortcuts](https://v2.tauri.app/plugin/global-shortcut/)
 - [Tauri macOS signing](https://v2.tauri.app/distribute/sign/macos/)
 - [Apple Developer Program](https://developer.apple.com/programs/)
+- [NVDA Controller Client 공식 문서](https://github.com/nvaccess/nvda/blob/release-2026.3/extras/controllerClient/readme.md)
 
 공식 문서는 제품·빌드 안내의 근거이며 이 비공개 IPC의 외부 지원이나 실제 NVDA/VoiceOver 성공을 보증하는 자료가 아닙니다.

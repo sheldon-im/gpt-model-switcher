@@ -28,6 +28,8 @@ if ($rustCount -le 0 -or !$frontendCount) { throw 'Could not verify test result 
 $exe = Join-Path $repo 'target/release/gpt-model-switcher.exe'
 $installer = Join-Path $repo "target/release/bundle/nsis/GPT Model Switcher_${version}_x64-setup.exe"
 if (!(Test-Path -LiteralPath $exe) -or !(Test-Path -LiteralPath $installer)) { throw 'Missing Windows artifacts' }
+$nvdaResources = Join-Path $repo 'target/release/nvda'
+if (!(Test-Path -LiteralPath (Join-Path $nvdaResources 'nvdaControllerClient.dll'))) { throw 'Missing NVDA controller resource; do not ship a silent portable package.' }
 $record = [ordered]@{
   recordedAtUtc = [DateTime]::UtcNow.ToString('o'); sourceCommit = $sourceCommit
   platform = 'Windows x64'; osVersion = [Environment]::OSVersion.Version.ToString()
@@ -36,7 +38,9 @@ $record = [ordered]@{
   windowsSigning = (Get-AuthenticodeSignature -LiteralPath $exe).Status.ToString()
   desktopSettingsRead = 'passed on desktop 26.1027.3384.0; no model mutation'
   generationGuard = 'passed on actual app; no model mutation'
-  newRouteActualSwitch = 'not tested'; NVDA = 'old menu route failed user observation; new route pending'
+  newRouteActualSwitch = 'user reports quiet switching; exact pairs not independently revalidated'
+  NVDA = '0.1.0 user reported missing speech; 0.1.1 controller requests accepted in native test with foreground preserved; listening confirmation pending'
+  nvdaControllerVersion = '2026.3, API 3.0, x64, unmodified signed upstream DLL'
   macOSBuild = 'not tested on Windows'; VoiceOver = 'not tested'
   currentLimit = 'Private desktop settings protocol; local work conversations only; reject ambiguous identity and unsupported views'
 }
@@ -48,6 +52,7 @@ Copy-Item -LiteralPath $installer -Destination (Join-Path $outputPath "gpt-model
 $portable = Join-Path $packageWork 'gpt-model-switcher'
 New-Item -ItemType Directory -Path $portable -Force | Out-Null
 Copy-Item -LiteralPath $exe -Destination $portable
+Copy-Item -LiteralPath $nvdaResources -Destination $portable -Recurse
 Copy-Item -LiteralPath (Join-Path $repo 'README.md'),(Join-Path $repo 'docs/VERIFICATION.md'),$recordPath -Destination $portable
 Compress-Archive -LiteralPath $portable -DestinationPath (Join-Path $outputPath "gpt-model-switcher-${version}-windows-x64-test.zip") -Force
 

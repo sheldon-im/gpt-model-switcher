@@ -68,7 +68,9 @@ pub fn apply(
             return Ok(visible);
         }
         conn.validate(p)?;
-        context.guard()?;
+        if context.guard()? != visible {
+            return Err("전환 직전에 화면 선택값이 바뀌었습니다. / Visible selection changed before switching.".into());
+        }
         attempted = true;
         if !conn.update(id, &raw, &p.model, Value::String(p.effort.clone()))? {
             return Err(
@@ -155,6 +157,7 @@ mod tests {
         after: Option<Selection>,
         reads: usize,
         change_after_write: bool,
+        edit_before_write: bool,
     }
     impl Context for Native {
         fn guard(&mut self) -> Result<Selection, String> {
@@ -162,7 +165,12 @@ mod tests {
             if self.changed || self.change_after_write && self.reads >= 3 {
                 Err("context/focus/busy changed".into())
             } else {
-                Ok(if self.reads >= 3 {
+                Ok(if self.edit_before_write && self.reads == 2 {
+                    Selection {
+                        model: self.selection.model.clone(),
+                        effort: "low".into(),
+                    }
+                } else if self.reads >= 3 {
                     self.after.as_ref().unwrap_or(&self.selection).clone()
                 } else {
                     self.selection.clone()
@@ -199,6 +207,7 @@ mod tests {
                 after: None,
                 reads: 0,
                 change_after_write: false,
+                edit_before_write: false,
             },
             Mock {
                 raw: json!({"model":"gpt-6.1-sol","reasoningEffort":null}),
@@ -220,6 +229,13 @@ mod tests {
         let (mut n, mut c) = setup();
         assert!(apply(&mut n, &mut c, "id", &Settings::default().presets[1]).success);
         assert_eq!(c.writes, 0)
+    }
+    #[test]
+    fn changed_visible_default_does_not_get_overwritten() {
+        let (mut n, mut c) = setup();
+        n.edit_before_write = true;
+        assert!(!apply(&mut n, &mut c, "id", &Settings::default().presets[0]).success);
+        assert_eq!(c.writes, 0);
     }
     #[test]
     fn conditional_rejection_does_not_restore_over_new_choice() {

@@ -269,13 +269,16 @@ fn connect(expected_pid: u32) -> Result<Box<dyn Transport>, String> {
     Ok(Box::new(Pipe(file)))
 }
 #[cfg(target_os = "macos")]
-fn connect(_pid: u32) -> Result<Box<dyn Transport>, String> {
+fn connect(pid: u32) -> Result<Box<dyn Transport>, String> {
+    connect_macos_socket(&home()?.join("ipc/ipc.sock"), pid)
+}
+#[cfg(target_os = "macos")]
+fn connect_macos_socket(path: &std::path::Path, expected_pid: u32) -> Result<Box<dyn Transport>, String> {
     use std::os::{
         fd::AsRawFd,
         unix::{fs::MetadataExt, net::UnixStream},
     };
-    let path = home()?.join("ipc/ipc.sock");
-    let meta = std::fs::symlink_metadata(&path)
+    let meta = std::fs::symlink_metadata(path)
         .map_err(|_| "Focus-free desktop connection unavailable")?;
     if meta.uid() != unsafe { libc::geteuid() }
         || meta.mode() & 0o077 != 0
@@ -291,12 +294,43 @@ fn connect(_pid: u32) -> Result<Box<dyn Transport>, String> {
     {
         return Err("Desktop socket owner mismatch".into());
     }
+    // A socket owned by this user can still belong to another application.
+    // Verify the kernel's peer PID before sending even the initialization frame.
+    let mut peer_pid: libc::pid_t = 0;
+    let mut length = std::mem::size_of_val(&peer_pid) as libc::socklen_t;
+    if unsafe {
+        libc::getsockopt(
+            stream.as_raw_fd(), libc::SOL_LOCAL, libc::LOCAL_PEERPID,
+            (&mut peer_pid as *mut libc::pid_t).cast(), &mut length,
+        )
+    } != 0 || length as usize != std::mem::size_of_val(&peer_pid)
+        || peer_pid <= 0 || peer_pid as u32 != expected_pid
+    {
+        return Err("Desktop IPC does not belong to foreground app".into());
+    }
     stream.set_nonblocking(true).map_err(|e| e.to_string())?;
     Ok(Box::new(stream))
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_socket_requires_foreground_peer_and_private_permissions() {
+        use std::os::unix::{fs::PermissionsExt, net::UnixListener};
+        let path = PathBuf::from("/private/tmp").join(format!("switcher-{}.sock", uuid::Uuid::new_v4()));
+        let server = UnixListener::bind(&path).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(connect_macos_socket(&path, std::process::id()).is_ok());
+        assert!(connect_macos_socket(&path, std::process::id() + 1).err().unwrap().contains("foreground app"));
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o660)).unwrap();
+        assert!(connect_macos_socket(&path, std::process::id()).err().unwrap().contains("permissions"));
+        drop(server);
+        std::fs::remove_file(&path).unwrap();
+        std::fs::write(&path, b"not a socket").unwrap();
+        assert!(connect_macos_socket(&path, std::process::id()).is_err());
+        std::fs::remove_file(&path).unwrap();
+    }
     struct Simulator {
         input: std::io::Cursor<Vec<u8>>,
         pending: Vec<u8>,

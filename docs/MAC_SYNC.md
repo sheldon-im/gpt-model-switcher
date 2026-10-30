@@ -1,32 +1,31 @@
-# 기존 Mac 수정본을 GitHub 이력에 반영하기
+# Mac에서 통합 저장소로 이어서 작업하기
 
-대상은 `sheldon-im/gpt-model-switcher` private 저장소입니다. `gh`에 해당 저장소 접근 권한이 있는 계정으로 로그인하십시오. Windows가 올린 소스를 받았다는 사실과 기존 Mac 변경분이 병합됐다는 사실은 구분합니다.
+사용자가 지정한 Mac 0.1.4 원본 `9007544`까지의 변경은 Windows 수정과 합쳐 통합 0.1.5에 반영했습니다. 이 변경을 다시 패치하지 마십시오. 원본 이력은 통합 main의 부모와 `mac-handoff-0.1.4` 보존 브랜치에 남깁니다. Mac 공유 폴더 자체는 Windows 작업에서 수정하지 않습니다.
 
-1. 기존 Mac 수정 폴더를 보존하고, 추적되지 않은 소스 파일을 포함해 변경 목록과 별도 백업을 확보합니다. 현재 폴더가 이미 Git 저장소라면 로컬 변경을 의미 있는 구성요소별 커밋으로 보존합니다. 빌드 산출물과 인증/개인 설정은 반영 대상에 포함하지 않습니다.
-2. 기존 수정 폴더를 덮어쓰지 않는 **새 폴더**에 clone합니다. 예를 들어 기존 폴더 옆에서 실행합니다.
+## 기존 Mac Git 폴더를 계속 사용할 때
 
-```sh
-gh repo clone sheldon-im/gpt-model-switcher gpt-model-switcher-sync
-cd gpt-model-switcher-sync
-```
-
-3. 기존 ZIP의 `SOURCE_SNAPSHOT.json`에서 `sourceCommit`을 확인합니다. 그 커밋은 Windows 저장소 이력에 있습니다. 새 clone에서 이 커밋을 기준으로 Mac 통합 브랜치를 만들고, **기존 Mac 수정으로 생긴 차이만** 적용·검증·커밋합니다. 기존 폴더가 Git 이력이 있다면 패치/커밋을 사용하고, 없다면 해당 원본 커밋과 수정본을 비교하여 변경·추가·삭제 파일을 빠짐없이 식별합니다. 아래 `<sourceCommit>`은 실제 값으로 바꿉니다.
+1. 먼저 `git status --short`로 추가 변경이 없는지 확인합니다. `9007544` 이후의 새 변경이 있으면 백업하고 의미 있는 구성요소별 로컬 커밋으로 보존합니다.
+2. `git remote -v`를 확인합니다. origin이 아직 없을 때만 아래 명령으로 추가합니다. 기존 origin이 있다면 다른 저장소를 가리키는지 확인하고 임의로 덮어쓰지 않습니다.
 
 ```sh
-git switch -c macos-integration <sourceCommit>
+git remote add origin https://github.com/sheldon-im/gpt-model-switcher.git
 ```
 
-4. Mac 변경 커밋을 만든 뒤 최신 Windows `main`을 병합합니다. 파일 전체를 최신 Windows 버전 위에 복사하면 포커스 보존, NVDA 음성 복구, 이미 적용된 프리셋 처리 등이 사라질 수 있으므로 세 방향 병합으로 충돌을 해결합니다.
+3. `gh`에 해당 private 저장소 접근 권한이 있는 계정으로 로그인한 뒤 기존 main에서 받습니다. Mac 원본 이력도 연결되어 있으므로 원본 9007544에 추가 커밋이 없는 경우 fast-forward할 수 있습니다.
 
 ```sh
 git fetch origin
-git merge origin/main
+git merge --ff-only origin/main
 ```
 
-5. `MAC_CODEX_INSTRUCTIONS.md`의 빌드·AX/VoiceOver 검증을 수행하고, 관련 수정과 검증을 완결된 구성요소별 커밋으로 남깁니다. 검증 후 통합 브랜치를 올리고 브랜치명·커밋 ID·실제 Mac 검증 결과를 Windows 작업에 인계합니다.
+4. 새 Mac 커밋 때문에 fast-forward가 안 되면 새 작업 브랜치에서 정상 병합하고 충돌을 해결합니다. 로컬 변경을 버리거나 force push하지 않습니다. 단순하게 새 clone을 사용하려면 기존 폴더 옆의 새 경로에서 아래처럼 시작해도 됩니다.
 
 ```sh
-git push -u origin macos-integration
+gh repo clone sheldon-im/gpt-model-switcher gpt-model-switcher-integrated
 ```
 
-기존 수정 폴더나 로컬 변경을 버리는 초기화·강제 덮어쓰기·force push는 필요하지 않습니다. 기준 커밋을 알 수 없으면 새 clone에 기존 폴더를 통째로 복사하지 말고, 기존 ZIP/로컬 Git 이력에서 기준을 먼저 확인하십시오.
+## 통합본의 Mac 검증
+
+`MAC_CODEX_INSTRUCTIONS.md`와 `docs/INTEGRATION.md`를 읽고 `sh scripts/build-macos.sh`를 실행합니다. Swift AX 처리는 앱 내부에 정적으로 연결하며 별도 접근성 sidecar를 설치하지 않습니다. 기존 0.1.4 바이너리/사용자 설정을 보존하고, 새 임시 서명 파일은 사용자 승인 없이 설치본에 덮어쓰지 않습니다.
+
+원본 0.1.4의 Mac 검증 보고와 통합 0.1.5의 결과를 분리합니다. 권한, 조용한 시작, 두 프리셋, 동일 프리셋 재입력, 입력/VoiceOver 커서·점자와 최종 한 번 안내를 다시 확인합니다. 추가 수정은 작업 브랜치에서 관련 검증과 함께 커밋하고 private 저장소에 push한 뒤 브랜치/커밋 ID와 결과를 인계합니다. 공개 전환·공개 패키지 배포는 승인 범위가 아닙니다.

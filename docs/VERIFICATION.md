@@ -1,10 +1,16 @@
 # 검증 상태 · 2026-10-30
 
-수행자: Windows의 Codex. 대상: Windows 11 x64의 로컬 소스 및 설치된 ChatGPT desktop 26.1027.3384.0. 설치·유료 가입·실제 프롬프트 전송은 수행하지 않았습니다. 사용자의 후속 명시적 승인에 따라 `gh`로 [sheldon-im/gpt-model-switcher](https://github.com/sheldon-im/gpt-model-switcher) private 저장소를 만들고 Windows 소스와 커밋 이력을 `main`에 업로드했습니다. `isPrivate=true`를 확인한 뒤 push했습니다. 공개 저장소 전환이나 시험 패키지의 외부 배포는 하지 않았습니다. 기존 Mac 변경분은 아직 병합하지 않았으며 `docs/MAC_SYNC.md`로 인계합니다.
+수행자: Windows의 Codex. 대상: Windows 11 x64의 로컬 소스 및 설치된 ChatGPT desktop 26.1027.3384.0. 설치·유료 가입·실제 프롬프트 전송은 수행하지 않았습니다. 사용자의 후속 명시적 승인에 따라 `gh`로 [sheldon-im/gpt-model-switcher](https://github.com/sheldon-im/gpt-model-switcher) private 저장소를 만들었습니다. 이어 사용자 지정 공유 드라이브의 Mac 0.1.4 수정본을 Windows 0.1.2에 통합하여 0.1.5로 구분합니다. `isPrivate=true`를 확인한 뒤 소스와 커밋 이력을 올리며 공개 전환이나 시험 패키지 외부 배포는 하지 않습니다.
 
 ## 현재 판정
 
 **시험 후보이며 실사용 검증 완료가 아닙니다.** 메뉴 자동화의 포커스·읽기 문제는 사용자의 실제 NVDA 관찰로 확인된 실패입니다. 이를 해결하기 위해 기본 동작에서 메뉴·키 전송·포커스 설정을 제거했습니다. 새 방식의 실제 NVDA 최종 안내/점자 및 실제 앱 양방향 전환은 재검증 전입니다. Mac 빌드와 VoiceOver 실기는 Mac Codex에게 인계합니다.
+
+## 0.1.5 Windows / Mac 통합
+
+Mac 원본 `9007544`와 검증 기록 `docs/MAC_VERIFICATION.md`를 가져왔습니다. 이 기록에는 Mac 0.1.4의 Rust32/React7/Swift23 및 임시 서명·DMG 검사, 사용자 전환 정상 보고가 있습니다. 이 Windows 작업자가 Mac에서 독립 재현한 결과는 아닙니다. 통합본의 Mac 빌드·권한·VoiceOver는 재검증 전입니다.
+
+이번 Windows 통합 검사에는 기존 NVDA/동일 프리셋 보호, 표준/Work 모델 캐시 우선순위·손상/시각/크기 제한, 시작/재실행/명시적 프리셋 요청, 권한 UI의 편집 포커스 보존, 상주 진단 재기록의 설정 보존을 포함합니다. Mac 원본 폴더는 변경하지 않습니다. 원본 커밋 이력은 통합 이력의 부모 및 보존 브랜치로 연결합니다. 기능·검증 경계와 차이는 `docs/INTEGRATION.md`를 참조하십시오.
 
 ## 0.1.2 반복 단축키 후속
 

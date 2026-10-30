@@ -42,7 +42,9 @@ $record = [ordered]@{
   NVDA = 'user confirmed 0.1.1 standalone voice test was heard once; actual preset/already-applied feedback and braille still need user verification'
   alreadyApplied = '0.1.2 verified-state repeat handling; writes zero in automated tests; native repeated-key listening pending'
   nvdaControllerVersion = '2026.3, API 3.0, x64, unmodified signed upstream DLL'
-  macOSBuild = 'not tested on Windows'; VoiceOver = 'not tested'
+  macOSBuild = 'integrated 0.1.5 requires Mac rebuild; imported Mac 0.1.4 report records successful native build'
+  macSource = '9007544; Mac report Rust32 React7 Swift23 and user-reported switching, not independently rerun on Windows'
+  VoiceOver = 'integrated version not tested'
   currentLimit = 'Private desktop settings protocol; local work conversations only; reject ambiguous identity and unsupported views'
 }
 $recordPath = Join-Path $outputPath '검증-실행결과.json'

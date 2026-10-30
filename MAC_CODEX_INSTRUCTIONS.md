@@ -1,6 +1,6 @@
 # Mac용 Codex에게 주는 구현·검증 지침
 
-이 ZIP은 Windows에서 준비한 **전체 공통 소스**입니다. Mac용 바이너리나 검증 완료 패키지가 아닙니다. macOS 13 이상 Apple Silicon에서 이어서 빌드·실기 확인하십시오.
+이 ZIP은 Windows 0.1.2와 사용자 지정 Mac 0.1.4를 합친 **0.1.5 전체 공통 소스**입니다. Mac용 바이너리나 통합본 검증 완료 패키지가 아닙니다. Mac 원본 9007544의 기록은 docs/MAC_VERIFICATION.md에 보존하며, 통합 0.1.5는 macOS 13 이상 Apple Silicon에서 다시 빌드·실기 확인하십시오.
 
 0.1.1 후속: 사용자는 Windows에서 포커스 소란이 사라진 뒤 결과 음성이 빠졌다고 보고했습니다. Windows는 NVDA의 공식 Controller Client로 직접 최종 안내하도록 수정했습니다. 이 Windows 전용 DLL은 Mac에서 사용하지 않습니다. VoiceOver의 최종 한 번 안내가 실제로 들리는지 `음성 안내 시험` 버튼과 실제 프리셋 전환에서 모두 확인하십시오. 포커스 보존만으로 음성 피드백 성공을 판정하지 마십시오.
 
@@ -8,7 +8,7 @@
 
 `SOURCE_SNAPSHOT.json`에 원본 커밋과 Windows 검사 상태가 있습니다. ZIP에는 `.git` 이력이 포함되지 않습니다. 필요하면 새 로컬 저장소를 초기화하고 원본 스냅샷을 첫 커밋으로 보존한 다음 수정하십시오. 인증 파일·대화 DB·사용자 설정은 동봉하지 않았습니다.
 
-private GitHub 저장소 `sheldon-im/gpt-model-switcher`로 작업을 이어갈 때는 [기존 Mac 수정본 반영 지침](docs/MAC_SYNC.md)을 먼저 읽으십시오. 이미 변경한 Mac 폴더는 보존하고 새 clone에서 기존 `sourceCommit`을 기준으로 Mac 변경분과 최신 Windows 변경분을 함께 병합합니다. clone만으로 기존 Mac 수정이 반영되는 것은 아닙니다.
+private GitHub 저장소 `sheldon-im/gpt-model-switcher`에 두 소스 이력을 연결했습니다. Mac 0.1.4까지의 변경은 이미 통합되었으므로 다시 적용하지 마십시오. [Mac 동기화 지침](docs/MAC_SYNC.md)에 따라 기존 수정본을 보존한 뒤 통합 main을 받습니다. 이후 추가된 Mac 변경만 새 브랜치에서 반영합니다.
 
 ## 지켜야 할 결정
 
@@ -32,13 +32,13 @@ pnpm build
 pnpm tauri build --target aarch64-apple-darwin --config src-tauri/tauri.macos.conf.json
 ```
 
-`build.rs`가 `native/MacBridge.swift`를 arm64/macOS13 대상으로 컴파일하고 `codesign --sign -`로 임시 서명합니다. Tauri는 이 도우미를 sidecar로 묶습니다. Swift/objc2/외부 바이너리 경로는 이 Windows 환경에서 컴파일하지 못했으므로 오류가 있으면 Mac에서 수정·검증합니다. 실행 파일·helper 각각의 서명을 `codesign --verify --deep --strict`와 `codesign -dv`로 확인합니다. `spctl` 거부를 공증 통과로 기록하지 마십시오.
+`build.rs`가 `native/MacBridge.swift`를 Swift 정적 라이브러리로 빌드하여 **앱 실행 파일 내부에 연결**합니다. 접근성·권한·알림을 담당하는 별도 sidecar는 앱에 포함하지 않습니다. `MacBridgeCLI.swift`는 합성 검사 전용입니다. 앱의 임시 서명은 Tauri의 `signingIdentity: "-"`로 수행합니다. 통합본을 `codesign --verify --deep --strict`와 `codesign -dv`로 확인하고, `spctl` 거부를 공증 통과로 기록하지 마십시오.
 
-같은 절차를 `sh scripts/build-macos.sh`로 실행할 수 있습니다. 이 스크립트는 Tauri가 sidecar 경로를 먼저 검사하는 경우를 위해 helper를 미리 준비합니다. 스크립트 자체도 Mac에서 아직 실행하지 않았습니다.
+`sh scripts/build-macos.sh`는 프로젝트 도구 환경, 잠금 파일, Rust/React 검사, Swift 합성 검사 23건 및 비대화형 앱/DMG 빌드를 실행합니다. 원본 0.1.4의 Mac 실행 결과는 전달 기록이며 이 통합 스크립트는 Windows에서 실행하지 않았습니다.
 
 ## 첫 실행과 접근성 권한
 
-키보드로 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에 들어가 앱/도우미의 권한을 사용자가 직접 허용하도록 안내합니다. 재빌드·서명·경로 변경 후 권한이 다시 필요할 수 있습니다. 권한 거부 상태에서는 이유가 읽히고 모델을 바꾸지 않아야 합니다. 권한을 강제 부여하거나 TCC DB를 수정하지 마십시오.
+키보드로 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에 들어가 GPT Model Switcher 앱의 권한을 사용자가 직접 허용하도록 안내합니다. 재빌드·서명·경로 변경 후 권한이 다시 필요할 수 있습니다. 권한 거부 상태에서는 이유가 읽히고 모델을 바꾸지 않아야 합니다. 권한을 강제 부여하거나 TCC DB를 수정하지 마십시오.
 
 ## 검증 순서
 

@@ -1,5 +1,7 @@
 use super::Status;
 use switcher_core::parse_selection;
+#[path="windows_switch.rs"] mod switching;
+pub use switching::switch;
 use windows::{core::Interface,Win32::{Foundation::{HWND,CloseHandle},System::{Com::{CoInitializeEx,CoUninitialize,CoCreateInstance,COINIT_MULTITHREADED,CLSCTX_INPROC_SERVER},Threading::{OpenProcess,QueryFullProcessImageNameW,PROCESS_QUERY_LIMITED_INFORMATION,PROCESS_NAME_WIN32},Variant::VARIANT},UI::{Accessibility::*,WindowsAndMessaging::*}}};
 fn err(e:impl std::fmt::Display)->String{e.to_string()}
 pub fn foreground()->Option<(HWND,String)> {unsafe{
@@ -14,7 +16,7 @@ pub fn foreground()->Option<(HWND,String)> {unsafe{
  let mut title=vec![0u16;1024];let n=GetWindowTextW(hwnd,&mut title);Some((hwnd,String::from_utf16_lossy(&title[..n as usize])))
 }}
 pub fn active()->bool{foreground().is_some()}
-pub struct Session {pub ui:IUIAutomation,pub root:IUIAutomationElement,pub hwnd:HWND,pub title:String}
+pub struct Session {pub ui:IUIAutomation,pub root:IUIAutomationElement,pub hwnd:HWND,pub title:String,pub started:std::time::Instant}
 impl Drop for Session{fn drop(&mut self){unsafe{CoUninitialize()}}}
 impl Session {
  pub fn open()->Result<Self,String>{unsafe{
@@ -22,7 +24,7 @@ impl Session {
   CoInitializeEx(None,COINIT_MULTITHREADED).ok().map_err(err)?;
   let result=(||{let ui:IUIAutomation=CoCreateInstance(&CUIAutomation8,None,CLSCTX_INPROC_SERVER).map_err(err)?;
    if let Ok(u)=ui.cast::<IUIAutomation2>(){let _=u.SetConnectionTimeout(600);let _=u.SetTransactionTimeout(600);}
-   let root=ui.ElementFromHandle(hwnd).map_err(err)?;Ok(Self{ui,root,hwnd,title})})();
+   let root=ui.ElementFromHandle(hwnd).map_err(err)?;Ok(Self{ui,root,hwnd,title,started:std::time::Instant::now()})})();
   if result.is_err(){CoUninitialize()}result
  }}
  pub fn elements(&self,role:UIA_CONTROLTYPE_ID)->Result<Vec<IUIAutomationElement>,String>{unsafe{
@@ -31,7 +33,7 @@ impl Session {
   let count=all.Length().map_err(err)?;if count>12000{return Err("Accessibility tree too large".into())}
   let mut found=Vec::new();for i in 0..count{if let Ok(e)=all.GetElement(i){if !e.CurrentIsOffscreen().unwrap_or_default().as_bool(){found.push(e)}}}Ok(found)
  }}
- pub fn check(&self)->Result<(),String>{let (h,t)=foreground().ok_or("대상 앱이 바뀌었습니다. / Target app changed.")?;if h!=self.hwnd||t!=self.title{return Err("대화 또는 창이 바뀌었습니다. / Conversation or window changed.".into())}Ok(())}
+ pub fn check(&self)->Result<(),String>{if self.started.elapsed()>std::time::Duration::from_secs(8){return Err("전환 제한 시간을 초과했습니다. / Switch deadline exceeded.".into())}let (h,t)=foreground().ok_or("대상 앱이 바뀌었습니다. / Target app changed.")?;if h!=self.hwnd||t!=self.title{return Err("대화 또는 창이 바뀌었습니다. / Conversation or window changed.".into())}Ok(())}
  pub fn buttons(&self)->Result<Vec<IUIAutomationElement>,String>{self.elements(UIA_ButtonControlTypeId)}
  pub fn picker(&self)->Result<IUIAutomationElement,String>{unsafe{
   let found:Vec<_>=self.buttons()?.into_iter().filter(|e|e.CurrentName().ok().is_some_and(|n|parse_selection(&n.to_string()).is_some())).collect();

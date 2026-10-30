@@ -9,6 +9,13 @@ struct AppState{settings:Mutex<Settings>,path:PathBuf}
 #[tauri::command] async fn get_status()->Result<platform::Status,String>{tauri::async_runtime::spawn_blocking(platform::inspect).await.map_err(|e|e.to_string())}
 fn main(){
     if std::env::args().any(|a|a=="--inspect"){println!("{}",serde_json::to_string(&platform::inspect()).unwrap());return;}
+    #[cfg(windows)]
+    if std::env::args().any(|a|a=="--inspect-menu"){let mut s=platform::Session::open().expect("Activate ChatGPT");let result=s.menu_names();let _=switcher_core::switching::Target::finish(&mut s);println!("{}",serde_json::to_string(&result).unwrap());return;}
+    #[cfg(windows)]
+    if std::env::args().any(|a|a=="--inspect-current-efforts"){let mut s=platform::Session::open().expect("Activate ChatGPT");let result=s.current_efforts_dump();let _=switcher_core::switching::Target::finish(&mut s);println!("{}",serde_json::to_string(&result).unwrap());return;}
+    #[cfg(windows)]
+    if let Some(sub)=std::env::args().find_map(|a|a.strip_prefix("--inspect-submenu=").map(str::to_owned)){let mut s=platform::Session::open().expect("Activate ChatGPT");let result=if sub=="model"{s.submenu_names(&["모델 선택","Choose model","Select model"])}else{s.submenu_dump()};let _=switcher_core::switching::Target::finish(&mut s);println!("{}",serde_json::to_string(&result).unwrap());return;}
+    if let Some(id)=std::env::args().find_map(|a|a.strip_prefix("--apply=").map(str::to_owned)){let settings=Settings::default();if let Some(p)=settings.presets.iter().find(|p|p.id==id){println!("{}",serde_json::to_string(&platform::switch(p)).unwrap());}return;}
     tauri::Builder::default().setup(|app|{
         let path=app.path().app_config_dir()?.join("settings.json");
         let settings=Settings::load(&path).map_err(std::io::Error::other)?;

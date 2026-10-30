@@ -16,8 +16,9 @@
         "width": 900,
         "height": 780,
         "minWidth": 420,
-        "minHeight": 500
-        ,"visible": false
+        "minHeight": 500,
+        "visible": false,
+        "focus": false
       }
     ],
     "security": {
@@ -40,7 +41,14 @@
       "signingIdentity": "-"
     },
     "windows": {
-      "nsis": {"languages":["Korean","English"],"displayLanguageSelector":true,"installMode":"currentUser"}
+      "nsis": {
+        "languages": [
+          "Korean",
+          "English"
+        ],
+        "displayLanguageSelector": true,
+        "installMode": "currentUser"
+      }
     }
   }
 }

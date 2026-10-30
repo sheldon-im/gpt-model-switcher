@@ -31,6 +31,7 @@ fn handle_launch(app: &tauri::AppHandle, args: &[String], initial: bool) {
             });
         }
         Ok(launch::Action::Background) => {}
+        Ok(launch::Action::Diagnostics) => write_runtime_diagnostic(app),
         Err(message) => publish(app, switcher_core::switching::Outcome {success:false,message,actual:None,restored:false}),
     }
 }
@@ -64,7 +65,8 @@ fn main() {
         .setup(|app| {
             let path = app.path().app_config_dir()?.join("settings.json");
             app.manage(AppState::new(path));
-            notifications::setup(app.handle())?;
+            let visual=app.state::<AppState>().settings.lock().is_ok_and(|settings|settings.visual_notifications);
+            notifications::setup(app.handle(),visual)?;
             #[cfg(target_os="macos")]
             { let _ = platform::accessibility(true); }
             handle_launch(app.handle(), &std::env::args().collect::<Vec<_>>(), true);

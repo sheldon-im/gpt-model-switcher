@@ -18,7 +18,9 @@ pub fn sync_shortcuts(app:&AppHandle,active:bool){
 #[tauri::command] pub fn save_settings(settings:Settings,app:AppHandle)->Result<(),String>{
  settings.validate()?;for p in &settings.presets{shortcut(p).parse::<Shortcut>().map_err(|e|e.to_string())?;}
  let state=app.state::<AppState>();if let Some(e)=&state.load_error{return Err(e.clone())}
+ let visual=settings.visual_notifications;
  {let mut guard=state.settings.lock().map_err(|e|e.to_string())?;settings.save(&state.path)?;*guard=settings;}
+ crate::notifications::configure(&app,visual);
  sync_shortcuts(&app,platform::active());Ok(())
 }
 #[tauri::command] pub async fn get_status(app:AppHandle)->Result<platform::Status,String>{
@@ -30,6 +32,26 @@ pub fn sync_shortcuts(app:&AppHandle,active:bool){
 #[tauri::command] pub fn get_history(state:tauri::State<AppState>)->Result<Vec<Outcome>,String>{Ok(state.history.lock().map_err(|e|e.to_string())?.clone())}
 #[derive(serde::Serialize)]
 pub struct AccessibilityStatus { required: bool, granted: bool }
+pub fn write_runtime_diagnostic(app:&AppHandle){
+ let handle=app.clone();tauri::async_runtime::spawn(async move{
+  let result:Result<(),String>=(async{
+   let access=accessibility_status(false).await?;
+   let state=handle.state::<AppState>();
+   let (visual,presets)={let settings=state.settings.lock().map_err(|e|e.to_string())?;
+    (settings.visual_notifications,settings.presets.iter().map(|p|serde_json::json!({"id":p.id,"model":p.model,"effort":p.effort,"macosShortcut":p.macos_shortcut})).collect::<Vec<_>>())};
+   let (count,latest)={let history=state.history.lock().map_err(|e|e.to_string())?;(history.len(),history.first().map(|o|o.success))};
+   let windows=handle.webview_windows().into_iter().filter_map(|(label,w)|w.is_visible().ok().filter(|visible|*visible).map(|_|label)).collect::<Vec<_>>();
+   let report=serde_json::json!({"version":handle.package_info().version.to_string(),"accessibilityGranted":access.granted,"visualNotifications":visual,"presets":presets,"visibleWindows":windows,"resultCount":count,"latestSuccess":latest,"settingsPath":state.path,"observedAtMs":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e|e.to_string())?.as_millis()});
+   let directory=handle.path().app_cache_dir().map_err(|e|e.to_string())?;
+   std::fs::create_dir_all(&directory).map_err(|e|e.to_string())?;
+   let pending=directory.join("runtime-diagnostic.pending.json");
+   std::fs::write(&pending,serde_json::to_vec_pretty(&report).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+   std::fs::rename(pending,directory.join("runtime-diagnostic.json")).map_err(|e|e.to_string())?;
+   Ok(())
+  }).await;
+  if let Err(error)=result {eprintln!("Runtime diagnostic failed: {error}");}
+ });
+}
 #[tauri::command] pub async fn accessibility_status(prompt:bool)->Result<AccessibilityStatus,String>{
  let granted=tauri::async_runtime::spawn_blocking(move||platform::accessibility(prompt)).await.map_err(|e|e.to_string())??;
  Ok(AccessibilityStatus{required:cfg!(target_os="macos"),granted})

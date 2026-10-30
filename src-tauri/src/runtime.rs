@@ -24,11 +24,13 @@ pub fn sync_shortcuts(app:&AppHandle,active:bool){
 #[tauri::command] pub async fn get_status(app:AppHandle)->Result<platform::Status,String>{
  let mut status=tauri::async_runtime::spawn_blocking(platform::inspect).await.map_err(|e|e.to_string())?;
  let state=app.state::<AppState>();if let Some(error)=state.bindings.lock().map_err(|e|e.to_string())?.clone(){status.available=false;status.message=error;}
+ if let Some(error)=crate::notifications::last_error(){status.message.push_str(&format!(" · 스크린 리더 안내 전달 실패 / Announcement delivery failed: {error}"));}
  Ok(status)
 }
 #[tauri::command] pub fn get_history(state:tauri::State<AppState>)->Result<Vec<Outcome>,String>{Ok(state.history.lock().map_err(|e|e.to_string())?.clone())}
 pub fn publish(app:&AppHandle,outcome:Outcome){
  let state=app.state::<AppState>();if let Ok(mut history)=state.history.lock(){history.insert(0,outcome.clone());history.truncate(20);}
+ if let Ok(settings)=state.settings.lock(){if settings.screen_reader_notifications{let ko=settings.language=="ko";let prefix=match(outcome.success,ko){(true,true)=>"전환 완료",(false,true)=>"전환 실패",(true,false)=>"Switched",(false,false)=>"Switch failed"};let pieces:Vec<_>=outcome.message.split(" / ").collect();let message=if ko{pieces[0]}else{pieces.last().copied().unwrap_or(&outcome.message)};let actual=if !outcome.success{outcome.actual.as_ref().map(|s|format!(". {} {}",s.model,s.effort)).unwrap_or_else(||if ko{". 현재 선택값은 확인하지 못했습니다.".into()}else{". Current selection could not be verified.".into()})}else{String::new()};crate::notifications::announce(app,format!("{prefix}. {message}{actual}"));}}
  let _=app.emit("switch-finished",outcome);
  if state.settings.lock().is_ok_and(|s|s.visual_notifications){crate::notifications::show(app);}
 }

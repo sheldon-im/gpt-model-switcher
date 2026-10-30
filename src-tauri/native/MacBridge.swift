@@ -78,6 +78,13 @@ let args=Array(CommandLine.arguments.dropFirst())
 AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(),0.6)
 do {
  switch args.first {
+ case "announce":
+    guard args.count==2 else {throw BridgeError.message("Missing announcement")}
+    let application=NSApplication.shared
+    application.setActivationPolicy(.prohibited)
+    NSAccessibility.post(element:application,notification:.announcementRequested,userInfo:[.announcement:args[1],.priority:NSAccessibilityPriorityLevel.medium.rawValue])
+    RunLoop.current.run(until:Date().addingTimeInterval(0.15))
+    emit(["ok":true])
  case "foreground": emit(["active":supported(NSWorkspace.shared.frontmostApplication)])
  case "watch":
     let parent=getppid()

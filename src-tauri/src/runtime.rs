@@ -138,35 +138,10 @@ pub fn publish(app: &AppHandle, outcome: Outcome) {
     }
     if let Ok(settings) = state.settings.lock() {
         if settings.screen_reader_notifications {
-            let ko = settings.language == "ko";
-            let prefix = match (outcome.success, ko) {
-                (true, true) => "전환 완료",
-                (false, true) => "전환 실패",
-                (true, false) => "Switched",
-                (false, false) => "Switch failed",
-            };
-            let pieces: Vec<_> = outcome.message.split(" / ").collect();
-            let message = if ko {
-                pieces[0]
-            } else {
-                pieces.last().copied().unwrap_or(&outcome.message)
-            };
-            let actual = if !outcome.success {
-                outcome
-                    .actual
-                    .as_ref()
-                    .map(|s| format!(". {} {}", s.model, s.effort))
-                    .unwrap_or_else(|| {
-                        if ko {
-                            ". 현재 선택값은 확인하지 못했습니다.".into()
-                        } else {
-                            ". Current selection could not be verified.".into()
-                        }
-                    })
-            } else {
-                String::new()
-            };
-            crate::notifications::announce(app, format!("{prefix}. {message}{actual}"));
+            crate::notifications::announce(
+                app,
+                crate::notifications::outcome_message(&outcome, &settings.language),
+            );
         }
     }
     let _ = app.emit("switch-finished", outcome);

@@ -5,6 +5,48 @@ static ANNOUNCEMENT_ERROR: std::sync::Mutex<Option<String>> = std::sync::Mutex::
 pub fn last_error() -> Option<String> {
     ANNOUNCEMENT_ERROR.lock().ok().and_then(|e| e.clone())
 }
+pub fn outcome_message(outcome: &switcher_core::switching::Outcome, language: &str) -> String {
+    let ko = language == "ko";
+    let prefix = if !outcome.success {
+        if ko {
+            "전환 실패"
+        } else {
+            "Switch failed"
+        }
+    } else if outcome.already_applied {
+        if ko {
+            "이미 적용되어 있습니다"
+        } else {
+            "Already applied"
+        }
+    } else if ko {
+        "전환 완료"
+    } else {
+        "Switched"
+    };
+    let pieces: Vec<_> = outcome.message.split(" / ").collect();
+    let message = if ko {
+        pieces[0]
+    } else {
+        pieces.last().copied().unwrap_or(&outcome.message)
+    };
+    let actual = if !outcome.success {
+        outcome
+            .actual
+            .as_ref()
+            .map(|s| format!(". {} {}", s.model, s.effort))
+            .unwrap_or_else(|| {
+                if ko {
+                    ". 현재 선택값은 확인하지 못했습니다.".into()
+                } else {
+                    ". Current selection could not be verified.".into()
+                }
+            })
+    } else {
+        String::new()
+    };
+    format!("{prefix}. {message}{actual}")
+}
 #[derive(Debug, serde::Serialize)]
 pub struct Delivery {
     pub backend: &'static str,
@@ -135,6 +177,37 @@ pub fn show(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn selected(already_applied: bool) -> switcher_core::switching::Outcome {
+        switcher_core::switching::Outcome {
+            success: true,
+            already_applied,
+            message: "gpt-6.1-sol · high".into(),
+            actual: Some(switcher_core::Selection {
+                model: "gpt-6.1-sol".into(),
+                effort: "high".into(),
+            }),
+            restored: false,
+        }
+    }
+    #[test]
+    fn same_preset_is_announced_as_already_applied_in_both_languages() {
+        let result = selected(true);
+        assert_eq!(
+            outcome_message(&result, "ko"),
+            "이미 적용되어 있습니다. gpt-6.1-sol · high"
+        );
+        assert_eq!(
+            outcome_message(&result, "en"),
+            "Already applied. gpt-6.1-sol · high"
+        );
+    }
+    #[test]
+    fn a_changed_selection_still_reports_a_completed_switch() {
+        assert_eq!(
+            outcome_message(&selected(false), "ko"),
+            "전환 완료. gpt-6.1-sol · high"
+        );
+    }
     #[test]
     fn nvda_acceptance_never_sends_a_second_uia_announcement() {
         let mut fallback = 0;

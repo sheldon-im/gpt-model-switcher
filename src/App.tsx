@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {api,Settings,Preset,Status,Outcome} from './api';
 import {validateShortcuts} from './shortcuts';
+import {outcomeTitle} from './outcome';
 const efforts=['none','minimal','low','medium','high','xhigh','max','ultra'];
 export function App(){
  const [settings,setSettings]=useState<Settings>();const [status,setStatus]=useState<Status>();
@@ -30,7 +31,7 @@ export function App(){
  </div><button onClick={()=>{setSettings({...settings,presets:settings.presets.filter(x=>x.id!==p.id)});addButton.current?.focus();}}>{t('프리셋 삭제','Delete preset')} {p.name}</button></fieldset>)}
  <button ref={addButton} onClick={()=>setSettings({...settings,presets:[...settings.presets,{id:crypto.randomUUID(),name:t('새 프리셋','New preset'),model:'',effort:'medium',windows_shortcut:'',macos_shortcut:''}]})}>{t('프리셋 추가','Add preset')}</button></section>
  <footer><button className="primary" disabled={saving} onClick={save}>{saving?t('저장 중…','Saving…'):t('설정 저장','Save settings')}</button><p role="status" aria-live="polite">{notice}</p><p role="alert">{error}</p></footer>
- <section aria-labelledby="history-title"><h2 id="history-title">{t('최근 전환 결과','Recent switch results')}</h2><p>{t('이번 실행의 최근 20개 결과입니다. 전환 중 입력 포커스를 옮기지 않습니다.','The latest 20 results from this session. Switching keeps input focus in place.')}</p>{history.length===0?<p>{t('아직 결과가 없습니다.','No results yet.')}</p>:<ol>{history.map((h,i)=><li key={i}><strong>{h.success?t('성공','Success'):t('실패','Failed')}</strong>: {h.message}<p>{t('확인된 선택값','Verified selection')}: {h.actual?`${h.actual.model} · ${h.actual.effort}`:t('확인하지 못했습니다.','Could not be verified.')}{h.restored&&` · ${t('원래 설정 복구 확인','Original settings restored')}`}</p></li>)}</ol>}</section>
+ <section aria-labelledby="history-title"><h2 id="history-title">{t('최근 전환 결과','Recent switch results')}</h2><p>{t('이번 실행의 최근 20개 결과입니다. 전환 중 입력 포커스를 옮기지 않습니다.','The latest 20 results from this session. Switching keeps input focus in place.')}</p>{history.length===0?<p>{t('아직 결과가 없습니다.','No results yet.')}</p>:<ol>{history.map((h,i)=><li key={i}><strong>{outcomeTitle(h,settings.language)}</strong>: {h.message}<p>{t('확인된 선택값','Verified selection')}: {h.actual?`${h.actual.model} · ${h.actual.effort}`:t('확인하지 못했습니다.','Could not be verified.')}{h.restored&&` · ${t('원래 설정 복구 확인','Original settings restored')}`}</p></li>)}</ol>}</section>
  <section aria-labelledby="help-title"><h2 id="help-title">{t('사용 안내','How to use')}</h2><p>{t('설정을 저장한 뒤 ChatGPT로 돌아가 단축키를 누르십시오. 응답 생성 중에는 전환하지 않습니다. 클라우드 채팅·동일 제목의 대화·연결 미지원 화면에서는 중단하며 메뉴 조작으로 재시도하지 않습니다.','Save settings, return to ChatGPT, and press the shortcut. Generation, cloud chats, ambiguous titles and unsupported connections block switching; menus are never used as a fallback.')}</p><p>{t('자동 시작은 꺼져 있습니다. 창을 닫아도 트레이 또는 메뉴 막대에서 계속 실행됩니다. 종료 메뉴로 완전히 종료할 수 있습니다.','Autostart is off. Closing the window keeps the app in the tray or menu bar. Choose Quit to exit.')}</p></section>
  </main></>;
 }

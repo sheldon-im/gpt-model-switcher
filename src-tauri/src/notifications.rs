@@ -11,7 +11,7 @@ pub fn setup(app:&AppHandle)->tauri::Result<()>{
  Ok(())
 }
 pub fn announce(app:&AppHandle,message:String){
- let app_for_call=app.clone();let _=app.run_on_main_thread(move||{
+ #[cfg(windows)]let app_for_call=app.clone();let _=app.run_on_main_thread(move||{
    #[cfg(windows)]let result=(||unsafe{
      use windows::{core::BSTR,Win32::{System::Com::{CoInitializeEx,CoUninitialize,COINIT_APARTMENTTHREADED},UI::Accessibility::*}};
      let initialized=CoInitializeEx(None,COINIT_APARTMENTTHREADED).is_ok();

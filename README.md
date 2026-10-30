@@ -54,5 +54,6 @@ Mac은 [MAC_CODEX_INSTRUCTIONS.md](MAC_CODEX_INSTRUCTIONS.md)를 먼저 읽으�
 - [검증 결과와 미확인 항목](docs/VERIFICATION.md)
 - [구성요소별 커밋과 되돌림](docs/COMMITS.md)
 - [Mac Codex 인계](MAC_CODEX_INSTRUCTIONS.md)
+- [Mac에서 수행한 검증과 남은 사용자 시험](docs/MAC_VERIFICATION.md)
 
 이 도구는 OpenAI 공식 제품이나 공식 애드온이 아닙니다. 모델 전환은 다음 요청의 설정만 바꾸며 메시지 전송·새 요청·추론 호출은 수행하지 않습니다.

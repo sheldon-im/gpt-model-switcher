@@ -7,6 +7,7 @@
 - 수행자: 이 대화의 Mac Codex. macOS 15.7.3 (24G419), arm64.
 - 설치된 대상: `/Applications/ChatGPT.app`, bundle ID `com.openai.codex`, 버전 26.1021.31345 (21828).
 - Windows 원본: `SOURCE_SNAPSHOT.json`의 `658ff4ba368a5b0e141dcd1d98f1d24d86df3d88`. Mac 로컬 원본 보존 커밋 `56c9080`.
+- 작업 종료 전 KB 재조회에서 Windows 0.1.1 (`43fea53708d49c3b8c048757757ceb403dc09399`)의 NVDA Controller Client·음성 안내 시험 후속 보고를 확인했습니다. 이 폴더는 0.1.0 원본이며 0.1.1 소스는 직접 읽거나 이식하지 않았습니다. 이번 Mac 결과를 최신 Windows 소스의 Mac 검증으로 사용하지 않습니다.
 - Xcode: `/Applications/Xcode.app/Contents/Developer`, Swift 6.2.4.
 - Node.js 24.19.0은 Codex 번들 실행 파일을 사용했습니다. Rust 1.99.1과 pnpm 10.20.0은 `work/tooling` 내부에 준비했습니다. 전역 PATH·셸 설정은 변경하지 않았습니다.
 
@@ -36,3 +37,21 @@ Swift 도우미 컴파일은 성공했습니다. 도우미의 `inspect`는 접�
 - 실제 VoiceOver 입력 포커스·커서·점자 보존과 최종 결과 1회 안내, 안내 끄기·한국어/영어·고대비.
 
 접근성 권한은 사용자가 시스템 설정에서 직접 부여해야 합니다. 이 결과는 Windows의 NVDA 실패가 Mac에서 해결되었다는 판정이 아닙니다. 실제 프롬프트 전송·정식 서명·공증·공개 배포·자동 시작 등록은 수행하지 않습니다.
+
+## 3. 빌드와 로컬 시험 패키지
+
+- `sh scripts/build-macos.sh`로 잠금 파일을 유지한 의존성 설치, Rust 27개·React 5개·Swift 19건 검사, 프런트엔드 빌드와 arm64 release 앱 생성을 확인했습니다.
+- 최초 DMG 시도는 Finder 장식 AppleScript가 대기하여 그 하위 작업을 중단했습니다. `CI=true`와 `--ci`를 사용한 포장 재실행은 종료 코드 0으로 앱/DMG를 생성했습니다. 이후 빌드 스크립트에도 같은 비대화형 모드를 적용했습니다.
+- 최종 `sh scripts/build-macos.sh` 전체 재실행도 종료 코드 0으로 완료했습니다. 설정·DB·인증 자료·도구 캐시는 소스 패키지에 포함하지 않습니다.
+- Swift 모듈 캐시를 Cargo 출력 폴더와 `target` 내부로 지정했습니다. Mac에서 사용되지 않는 Windows 알림 핸들의 컴파일 경고도 제거했습니다.
+- 앱과 포함된 도우미 모두 arm64이며 `codesign --verify --deep --strict` 통과, `codesign -dv`에서 `Signature=adhoc`, `TeamIdentifier=not set`을 확인했습니다.
+- DMG의 `hdiutil verify` 체크섬 검사가 통과했습니다.
+- Gatekeeper의 `spctl --assess --type execute` 결과는 **rejected (종료 코드 3)**입니다. 공증·Developer ID 서명·Gatekeeper 통과로 표시하지 않습니다. 보안 설정이나 격리 속성을 변경하지 않았습니다.
+- 묶음 앱의 `--inspect`도 접근성 권한 필요 상태를 정상 JSON으로 반환했습니다. GUI 설정 창의 실제 키보드 탐색·백그라운드 시작 시 포커스 보존은 아직 미시험입니다.
+
+## 사용자가 이어서 확인할 순서
+
+1. Finder에서 `Command+Shift+G`로 이 폴더의 `target/aarch64-apple-darwin/release/bundle/macos`를 열고 `GPT Model Switcher.app`을 찾습니다. 설치·최초 실행 허용 여부는 사용자가 선택합니다.
+2. 시스템 설정의 **개인정보 보호 및 보안 → 손쉬운 사용**에서 앱과 필요한 도우미의 권한을 직접 허용합니다. Tab/Shift+Tab 또는 VoiceOver 탐색키로 항목과 추가 버튼을 찾아 조작합니다. 이 경로 안내는 실제 사용자 검증과 구별합니다.
+3. 실제 전환 시험에 사용할 기존 로컬 대화 하나를 지정합니다. 생성이 끝난 상태에서 한글/영문 작성문·선택 영역·커서를 기록하고 두 프리셋을 시험한 뒤 원래 모델·추론 값으로 복구합니다. 메시지는 보내지 않습니다.
+4. VoiceOver로 입력 포커스·VO 커서·점자가 유지되고 최종 안내가 한 번인지 확인합니다. 실패·미확인은 이 문서에 별도로 기록하며 자동 검사 통과로 대체하지 않습니다.

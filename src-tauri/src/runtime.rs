@@ -30,6 +30,7 @@ pub fn sync_shortcuts(app:&AppHandle,active:bool){
 pub fn publish(app:&AppHandle,outcome:Outcome){
  let state=app.state::<AppState>();if let Ok(mut history)=state.history.lock(){history.insert(0,outcome.clone());history.truncate(20);}
  let _=app.emit("switch-finished",outcome);
+ if state.settings.lock().is_ok_and(|s|s.visual_notifications){crate::notifications::show(app);}
 }
 #[tauri::command] pub async fn apply_preset(app:AppHandle,id:String)->Result<Outcome,String>{
  let preset={let state=app.state::<AppState>();let settings=state.settings.lock().map_err(|e|e.to_string())?;settings.presets.iter().find(|p|p.id==id).cloned().ok_or("Unknown preset")?};

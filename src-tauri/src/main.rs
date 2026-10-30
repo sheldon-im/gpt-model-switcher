@@ -8,6 +8,7 @@ use tauri::{
 mod desktop_ipc;
 mod platform;
 mod quiet_switch;
+mod notifications;
 mod runtime;
 use runtime::*;
 fn main() {
@@ -37,6 +38,7 @@ fn main() {
         .setup(|app| {
             let path = app.path().app_config_dir()?.join("settings.json");
             app.manage(AppState::new(path));
+            notifications::setup(app.handle())?;
             if std::env::args().any(|a| a == "--fixture") {
                 let w = app
                     .get_webview_window("main")

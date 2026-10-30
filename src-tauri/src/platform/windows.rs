@@ -116,7 +116,7 @@ impl Session {
             CoInitializeEx(None, COINIT_MULTITHREADED)
                 .ok()
                 .map_err(err)?;
-            let result = (|| {
+            let result: Result<Self,String> = (|| {
                 let ui: IUIAutomation =
                     CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER).map_err(err)?;
                 if let Ok(u) = ui.cast::<IUIAutomation2>() {
@@ -124,7 +124,7 @@ impl Session {
                     let _ = u.SetTransactionTimeout(600);
                 }
                 let root = ui.ElementFromHandle(hwnd).map_err(err)?;
-                let mut s = Self {
+                let s = Self {
                     ui,
                     root,
                     hwnd,
@@ -132,13 +132,16 @@ impl Session {
                     document: String::new(),
                     started: std::time::Instant::now(),
                 };
-                s.document = s.document_name()?;
                 Ok(s)
             })();
             if result.is_err() {
                 CoUninitialize()
             }
-            result
+            // After construction, Session owns the COM reference. A failed first
+            // document read must drop Session once, without a second uninitialize.
+            let mut session = result?;
+            session.document = session.document_name()?;
+            Ok(session)
         }
     }
     pub fn elements(&self, role: UIA_CONTROLTYPE_ID) -> Result<Vec<IUIAutomationElement>, String> {

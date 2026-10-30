@@ -41,6 +41,8 @@
 
 프로토콜은 이 PC의 설치된 `app.asar`의 framing/router/thread-settings 구현을 읽어 확인했습니다. 설치된 앱 파일이나 글로벌 스크린 리더 설정은 수정하지 않았습니다. 공개 지원 계약이 아니므로 업데이트 후 재검증이 필요합니다.
 
+Windows UIA 초기 문서 읽기 실패 시 COM 정리가 중복되는 경로를 정리했습니다. 이후 공통 검사·Windows 빌드·실제 읽기 진단으로 회귀를 확인하며, 실제 UIA 공급자 고장 주입 검사는 수행하지 않았습니다.
+
 - [ChatGPT desktop commands](https://learn.chatgpt.com/docs/app/commands)
 - [App-server](https://learn.chatgpt.com/docs/app-server)
 - [Tauri global shortcuts](https://v2.tauri.app/plugin/global-shortcut/)

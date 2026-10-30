@@ -247,7 +247,26 @@ fn connect(expected_pid: u32) -> Result<Box<dyn Transport>, String> {
         let mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
         SetNamedPipeHandleState(h, Some(&mode), None, None).map_err(|e| e.to_string())?;
     }
-    Ok(Box::new(file))
+    // A byte pipe in PIPE_NOWAIT mode may return a successful zero-byte read
+    // while its peer is still connected. Treat that as pending, bounded by our deadline.
+    struct Pipe(std::fs::File);
+    impl Read for Pipe {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            match self.0.read(buffer) {
+                Ok(0) => Err(std::io::ErrorKind::WouldBlock.into()),
+                other => other,
+            }
+        }
+    }
+    impl Write for Pipe {
+        fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+            self.0.write(buffer)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    Ok(Box::new(Pipe(file)))
 }
 #[cfg(target_os = "macos")]
 fn connect(_pid: u32) -> Result<Box<dyn Transport>, String> {
@@ -278,6 +297,96 @@ fn connect(_pid: u32) -> Result<Box<dyn Transport>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    struct Simulator {
+        input: std::io::Cursor<Vec<u8>>,
+        pending: Vec<u8>,
+        seen: std::rc::Rc<std::cell::RefCell<Vec<Value>>>,
+        change_owner: bool,
+    }
+    impl Read for Simulator {
+        fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+            let count = b.len().min(3);
+            self.input.read(&mut b[..count])
+        }
+    }
+    impl Write for Simulator {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.pending.extend_from_slice(b);
+            if self.pending.len() >= 4 {
+                let n = u32::from_le_bytes(self.pending[..4].try_into().unwrap()) as usize;
+                if self.pending.len() >= 4 + n {
+                    let request: Value = serde_json::from_slice(&self.pending[4..4 + n]).unwrap();
+                    self.pending.drain(..4 + n);
+                    self.seen.borrow_mut().push(request.clone());
+                    let method = request["method"].as_str().unwrap();
+                    let result = match method {
+                        "initialize" => json!({"clientId":"switcher"}),
+                        "thread-follower-read-model-settings" => {
+                            json!({"settings":{"model":"gpt-6.1-sol","reasoningEffort":null,"resumeState":"resumed","threadSource":"user","modelProvider":"openai","mode":"default"}})
+                        }
+                        "thread-follower-update-thread-settings" => json!({"applied":true}),
+                        _ => panic!("Unexpected capability: {method}"),
+                    };
+                    let owner = if self.change_owner
+                        && method == "thread-follower-update-thread-settings"
+                    {
+                        "another-owner"
+                    } else {
+                        "owner"
+                    };
+                    let response = json!({"type":"response","requestId":request["requestId"],"method":method,"resultType":"success","handledByClientId":owner,"result":result});
+                    write_frame(self.input.get_mut(), &response).unwrap();
+                }
+            }
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    #[test]
+    fn owner_is_pinned_and_default_effort_condition_is_preserved() {
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let sim = Simulator {
+            input: std::io::Cursor::new(Vec::new()),
+            pending: Vec::new(),
+            seen: seen.clone(),
+            change_owner: false,
+        };
+        let mut d = Desktop::initialize(Box::new(sim)).unwrap();
+        let raw = d.read("conversation").unwrap();
+        assert!(d
+            .update("conversation", &raw, "gpt-6.1-terra", json!("medium"))
+            .unwrap());
+        let requests = seen.borrow();
+        let update = &requests[2];
+        assert_eq!(update["targetClientId"], "owner");
+        assert_eq!(update["version"], 2);
+        assert!(update["params"]["condition"]["ifEffortEquals"].is_null());
+        assert_eq!(
+            update["params"]["threadSettings"]
+                .as_object()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(update["params"].get("activeTurnId").is_none());
+    }
+    #[test]
+    fn changed_owner_response_is_rejected() {
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let sim = Simulator {
+            input: std::io::Cursor::new(Vec::new()),
+            pending: Vec::new(),
+            seen,
+            change_owner: true,
+        };
+        let mut d = Desktop::initialize(Box::new(sim)).unwrap();
+        let raw = d.read("conversation").unwrap();
+        assert!(d
+            .update("conversation", &raw, "gpt-6.1-terra", json!("medium"))
+            .is_err());
+    }
     #[test]
     fn frame_round_trip() {
         let value = json!({"type":"response","result":{"model":"gpt-6.1-terra"}});

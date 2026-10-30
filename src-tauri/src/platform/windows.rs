@@ -84,6 +84,31 @@ impl Drop for Session {
     }
 }
 impl Session {
+    pub fn local_surface(&self) -> Result<(), String> {
+        unsafe {
+            let permissions = self
+                .buttons()?
+                .iter()
+                .filter(|b| {
+                    b.CurrentName().ok().is_some_and(|n| {
+                        matches!(n.to_string().as_str(), "권한 변경" | "Change permissions")
+                    })
+                })
+                .count();
+            let cloud = self.elements(UIA_ImageControlTypeId)?.iter().any(|e| {
+                e.CurrentName().ok().is_some_and(|n| {
+                    matches!(
+                        n.to_string().as_str(),
+                        "클라우드 채팅" | "Cloud chat" | "원격 채팅" | "Remote chat"
+                    )
+                })
+            });
+            if permissions != 1 || cloud {
+                return Err("로컬 작업 대화임을 확인하지 못했습니다. / Cannot verify a local work conversation.".into());
+            }
+            Ok(())
+        }
+    }
     pub fn open() -> Result<Self, String> {
         unsafe {
             let (hwnd, title) =
@@ -241,6 +266,8 @@ struct QuietWindow {
 impl QuietWindow {
     fn new() -> Result<Self, String> {
         let session = Session::open()?;
+        session.local_surface()?;
+        session.read()?;
         let id = crate::desktop_ipc::resolve(&session.document)?;
         let focus = unsafe { session.ui.GetFocusedElement().map_err(err)? };
         Ok(Self { session, focus, id })
@@ -256,6 +283,7 @@ impl QuietWindow {
 impl crate::quiet_switch::Context for QuietWindow {
     fn guard(&mut self) -> Result<switcher_core::Selection, String> {
         self.session.check()?;
+        self.session.local_surface()?;
         if self.session.busy()? {
             return Err(
                 "응답 생성 중에는 전환할 수 없습니다. / Cannot switch during generation.".into(),

@@ -47,12 +47,16 @@ func snapshot() throws -> [String:Any] {
     guard AXIsProcessTrusted() else {throw BridgeError.message("접근성 권한이 필요합니다. / Allow Accessibility access for GPT Model Switcher and its macos-bridge helper.")}
     guard let (app,root)=target() else {throw BridgeError.message("ChatGPT 앱을 활성화하십시오. / Activate ChatGPT.")}
     let all=nodes(root);let pickers=all.filter {role($0)==kAXButtonRole && parseSelection(name($0)) != nil}
+    let permissions=all.filter {role($0)==kAXButtonRole && ["권한 변경","Change permissions"].contains(name($0))}
+    guard permissions.count==1, !all.contains(where:{["클라우드 채팅","Cloud chat","원격 채팅","Remote chat"].contains(name($0))}) else {throw BridgeError.message("Cannot verify a local work conversation / 로컬 작업 대화임을 확인하지 못했습니다.")}
     guard pickers.count==1,let selection=parseSelection(name(pickers[0])) else {throw BridgeError.message("Cannot uniquely identify model and reasoning control / 모델 버튼을 식별할 수 없습니다.")}
     let busy=all.contains {role($0)==kAXButtonRole && ["중지","중단","작업 중지","stop","stop generating","stop streaming","stop turn","현재 작업 조정"].contains(name($0).lowercased())}
     let application = AXUIElementCreateApplication(app.processIdentifier)
     guard let focused = attr(application,kAXFocusedUIElementAttribute) else {throw BridgeError.message("Cannot identify input focus")}
     let focus = unsafeBitCast(focused,to:AXUIElement.self)
+    var focusBudget=12000
     func focusPath(_ e:AXUIElement,_ path:[Int],_ depth:Int)->[Int]? {
+        focusBudget-=1;if focusBudget<0{return nil}
         if CFEqual(e,focus){return path};if depth>40{return nil}
         for (i,child) in ((attr(e,kAXChildrenAttribute) as? [AXUIElement]) ?? []).enumerated(){if let p=focusPath(child,path+[i],depth+1){return p}}
         return nil

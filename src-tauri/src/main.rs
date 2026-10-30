@@ -56,6 +56,8 @@ fn main() {
             let path = app.path().app_config_dir()?.join("settings.json");
             app.manage(AppState::new(path));
             notifications::setup(app.handle())?;
+            #[cfg(target_os="macos")]
+            { let _ = platform::accessibility(true); }
             handle_launch(app.handle(), &std::env::args().collect::<Vec<_>>(), true);
             if std::env::args().any(|a| a == "--fixture") {
                 let w = app

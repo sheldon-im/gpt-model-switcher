@@ -136,50 +136,55 @@ func runBridgeTests() throws {
     emit(["passed":18,"scope":"synthetic token, focus and selection checks; no AX or model writes"])
 }
 #endif
-let args=Array(CommandLine.arguments.dropFirst())
-AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(),0.6)
-do {
- switch args.first {
- case "access": emit(["granted":AXIsProcessTrusted()])
- case "request-access":
-    emit(["granted":requestAccessibility()])
-    RunLoop.current.run(until:Date().addingTimeInterval(0.25))
- case "open-access-settings":
-    guard let url=URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"), NSWorkspace.shared.open(url) else {
-        throw BridgeError.message("Cannot open Accessibility settings / 손쉬운 사용 권한 설정을 열지 못했습니다.")
+func bridgeRequest(_ args:[String]) throws -> [String:Any] {
+    AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(),0.6)
+    switch args.first {
+    case "access": return ["granted":AXIsProcessTrusted()]
+    case "request-access": return ["granted":requestAccessibility()]
+    case "open-access-settings":
+        guard let url=URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"), NSWorkspace.shared.open(url) else {
+            throw BridgeError.message("Cannot open Accessibility settings / 손쉬운 사용 권한 설정을 열지 못했습니다.")
+        }
+        return ["ok":true]
+    case "announce":
+        guard args.count==2 else {throw BridgeError.message("Missing announcement")}
+        NSAccessibility.post(element:NSApplication.shared,notification:.announcementRequested,userInfo:[.announcement:args[1],.priority:NSAccessibilityPriorityLevel.medium.rawValue])
+        return ["ok":true]
+    case "foreground": return ["active":supported(NSWorkspace.shared.frontmostApplication)]
+    case "release":
+        let deadline=Date().addingTimeInterval(1)
+        while !CGEventSource.flagsState(.combinedSessionState).intersection([.maskControl,.maskAlternate,.maskShift,.maskCommand]).isEmpty {
+            if Date()>deadline {throw BridgeError.message("Release shortcut keys and retry")}
+            Thread.sleep(forTimeInterval:0.02)
+        }
+        return ["ok":true]
+    case "inspect": return try snapshot()
+    case "check":
+        guard args.count==2 else {throw BridgeError.message("Missing target context")}
+        _ = try guarded(args[1]);return ["ok":true]
+    default: throw BridgeError.message("Unknown bridge command")
     }
-    emit(["ok":true])
- case "announce":
-    guard args.count==2 else {throw BridgeError.message("Missing announcement")}
-    let application=NSApplication.shared
-    application.setActivationPolicy(.prohibited)
-    NSAccessibility.post(element:application,notification:.announcementRequested,userInfo:[.announcement:args[1],.priority:NSAccessibilityPriorityLevel.medium.rawValue])
-    RunLoop.current.run(until:Date().addingTimeInterval(0.15))
-    emit(["ok":true])
- case "foreground": emit(["active":supported(NSWorkspace.shared.frontmostApplication)])
- case "watch":
-    let parent=getppid()
-    // Keep the requesting process alive while macOS presents its asynchronous prompt.
-    _ = requestAccessibility()
-    emit(["active":supported(NSWorkspace.shared.frontmostApplication)])
-    _ = NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didActivateApplicationNotification,object:nil,queue:.main){_ in emit(["active":supported(NSWorkspace.shared.frontmostApplication)])}
-    _ = Timer.scheduledTimer(withTimeInterval:1,repeats:true){_ in if kill(parent,0) != 0 {exit(0)}}
-    RunLoop.main.run()
- case "release":
-    let deadline=Date().addingTimeInterval(1)
-    while !CGEventSource.flagsState(.combinedSessionState).intersection([.maskControl,.maskAlternate,.maskShift,.maskCommand]).isEmpty {
-      if Date()>deadline {throw BridgeError.message("Release shortcut keys and retry")}
-      Thread.sleep(forTimeInterval:0.02)
-    }
-    emit(["ok":true])
- case "inspect": emit(try snapshot())
- case "check":
-    guard args.count==2 else {throw BridgeError.message("Missing target context")}
-    _ = try guarded(args[1]);emit(["ok":true])
- #if BRIDGE_TESTS
- case "self-test": try runBridgeTests()
- #endif
- default: throw BridgeError.message("Unknown bridge command")
- }
-} catch {emit(["error":String(describing:error)])}
-
+}
+func observeForeground(_ callback:@escaping (Bool)->Void) {
+    callback(supported(NSWorkspace.shared.frontmostApplication))
+    _ = NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didActivateApplicationNotification,object:nil,queue:.main){_ in callback(supported(NSWorkspace.shared.frontmostApplication))}
+}
+#if BRIDGE_LIBRARY
+@_cdecl("switcher_macos_request")
+public func embeddedRequest(_ input:UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
+    let result:[String:Any]
+    do {
+        guard let input=input, let data=String(cString:input).data(using:.utf8), data.count<=65536,
+            let args=try JSONSerialization.jsonObject(with:data) as? [String] else {throw BridgeError.message("Invalid bridge request")}
+        result=try bridgeRequest(args)
+    } catch {result=["error":String(describing:error)]}
+    guard let data=try? JSONSerialization.data(withJSONObject:result,options:[.sortedKeys]), let text=String(data:data,encoding:.utf8) else {return nil}
+    return strdup(text)
+}
+@_cdecl("switcher_macos_free")
+public func embeddedFree(_ pointer:UnsafeMutablePointer<CChar>?) {free(pointer)}
+@_cdecl("switcher_macos_watch")
+public func embeddedWatch(_ callback:@escaping @convention(c) (UInt8)->Void) {
+    observeForeground {callback($0 ? 1 : 0)}
+}
+#endif

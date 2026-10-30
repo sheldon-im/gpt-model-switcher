@@ -1,37 +1,22 @@
 use super::Status;
 use serde_json::Value;
-use std::{path::PathBuf, process::Command};
-fn helper() -> Result<PathBuf, String> {
-    let packaged = std::env::current_exe()
-        .map_err(|e| e.to_string())?
-        .parent()
-        .ok_or("No executable directory")?
-        .join("macos-bridge");
-    if packaged.exists() {
-        return Ok(packaged);
-    }
-    let dev =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("native/macos-bridge-aarch64-apple-darwin");
-    if dev.exists() {
-        Ok(dev)
-    } else {
-        Err("macOS bridge not built. Run the macOS build instructions. / Mac 빌드 지침을 실행하십시오.".into())
-    }
+use std::ffi::{CStr, CString};
+unsafe extern "C" {
+    fn switcher_macos_request(input: *const libc::c_char) -> *mut libc::c_char;
+    fn switcher_macos_free(pointer: *mut libc::c_char);
+    fn switcher_macos_watch(callback: extern "C" fn(u8));
 }
 fn request(args: &[&str]) -> Result<Value, String> {
-    let output = Command::new(helper()?)
-        .args(args)
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).into());
-    }
-    let v: Value = serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
-    if let Some(e) = v.get("error").and_then(Value::as_str) {
-        Err(e.into())
-    } else {
-        Ok(v)
-    }
+    let input = CString::new(serde_json::to_string(args).map_err(|e| e.to_string())?).map_err(|e|e.to_string())?;
+    let text = unsafe {
+        let pointer = switcher_macos_request(input.as_ptr());
+        if pointer.is_null() { return Err("macOS bridge returned no response".into()); }
+        let text = CStr::from_ptr(pointer).to_string_lossy().into_owned();
+        switcher_macos_free(pointer);
+        text
+    };
+    let value: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    if let Some(error) = value.get("error").and_then(Value::as_str) {Err(error.into())} else {Ok(value)}
 }
 pub fn announce(message:&str)->Result<(),String>{request(&["announce",message]).map(|_|())}
 pub fn accessibility(prompt: bool) -> Result<bool, String> {
@@ -50,34 +35,16 @@ pub fn active() -> bool {
 pub fn wait_shortcut_release() -> Result<(), String> {
     request(&["release"]).map(|_| ())
 }
+type ForegroundCallback = Box<dyn Fn(bool) + Send + Sync>;
+static FOREGROUND_CALLBACK: std::sync::OnceLock<ForegroundCallback> = std::sync::OnceLock::new();
+extern "C" fn foreground_changed(active: u8) {
+    if let Some(callback) = FOREGROUND_CALLBACK.get() {callback(active != 0)}
+}
 pub fn watch(callback: impl Fn(bool) + Send + Sync + 'static) {
-    std::thread::spawn(move || {
-        use std::io::{BufRead, BufReader};
-        let Ok(path) = helper() else {
-            callback(false);
-            return;
-        };
-        let Ok(mut child) = Command::new(path)
-            .arg("watch")
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            callback(false);
-            return;
-        };
-        if let Some(out) = child.stdout.take() {
-            for line in BufReader::new(out).lines().map_while(Result::ok) {
-                if let Ok(v) = serde_json::from_str::<Value>(&line) {
-                    if let Some(active) = v["active"].as_bool() {
-                        callback(active)
-                    }
-                }
-            }
-        }
-        let _ = child.wait();
-        callback(false);
-    });
+    if FOREGROUND_CALLBACK.set(Box::new(callback)).is_ok() {
+        // Called by Tauri setup on its main thread; no child process owns AX access.
+        unsafe {switcher_macos_watch(foreground_changed)};
+    }
 }
 pub fn inspect() -> Status {
     request(&["inspect"])
@@ -148,4 +115,16 @@ pub fn switch(p: &Preset) -> Outcome {
         actual: None,
         restored: false,
     })
+}
+
+#[cfg(test)]
+mod bridge_tests {
+    use super::*;
+    #[test]
+    fn linked_bridge_roundtrip_and_malformed_context_are_safe() {
+        assert!(request(&["access"]).unwrap()["granted"].is_boolean());
+        assert!(request(&["check", "{}"]).unwrap_err().contains("Invalid or expired target context"));
+        assert!(request(&["check"]).unwrap_err().contains("Missing target context"));
+        assert!(request(&["unknown"]).unwrap_err().contains("Unknown bridge command"));
+    }
 }

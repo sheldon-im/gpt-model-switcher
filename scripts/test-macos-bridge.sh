@@ -3,9 +3,9 @@ set -eu
 cd "$(dirname "$0")/.."
 [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = arm64 ]
 mkdir -p target/bridge-tests
-xcrun swiftc -D BRIDGE_TESTS -O -module-cache-path target/bridge-tests/swift-cache \
+xcrun swiftc -D BRIDGE_TESTS -parse-as-library -O -module-cache-path target/bridge-tests/swift-cache \
   -target arm64-apple-macos13.0 -framework Cocoa -framework ApplicationServices \
-  src-tauri/native/MacBridge.swift -o target/bridge-tests/macos-bridge-tests
+  src-tauri/native/MacBridge.swift src-tauri/native/MacBridgeCLI.swift -o target/bridge-tests/macos-bridge-tests
 /usr/bin/python3 - <<'PY'
 import json, subprocess
 helper = 'target/bridge-tests/macos-bridge-tests'

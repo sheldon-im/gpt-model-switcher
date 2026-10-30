@@ -1,10 +1,12 @@
-# GPT Model Switcher 0.1.1 · 시험판
+# GPT Model Switcher 0.1.2 · 시험판
 
 Windows 11 x64 / macOS 13 이상 Apple Silicon에서 사용하는 모델·추론 수준 프리셋 도구입니다. Tauri 2, Rust, React/TypeScript로 작성했습니다. 자동 시작은 기본 해제입니다.
 
 **현재는 시험 후보입니다. 실제 NVDA·VoiceOver 사용 검증을 통과한 배포판이 아닙니다.** 메뉴 자동화에서 사용자가 NVDA의 중간 포커스 이동·과도한 읽기를 발견하여 기본 전환을 포커스 없는 설정 연결로 교체했습니다. Mac 코드는 Windows에서 빌드·실행 검증하지 못했습니다.
 
 0.1.1은 사용자가 보고한 ‘포커스 소음은 줄었지만 전환 결과 음성이 빠짐’을 수정합니다. Windows에서 NVDA가 실행 중이면 NVDA의 공식 Controller Client로 최종 음성·점자 안내를 직접 전달하며, 같은 결과를 UIA로 다시 보내지 않습니다. NVDA 음성 취소·전역 음소거·별도 TTS는 사용하지 않습니다. 다른 스크린 리더의 일반 UIA 안내와 Mac VoiceOver는 별도 실기 확인이 필요합니다.
+
+0.1.2에서는 이미 같은 모델·추론이 선택된 상태에서 해당 프리셋의 단축키를 다시 누르면 설정을 쓰지 않고 ‘이미 적용되어 있습니다’와 현재 모델·추론을 한 번 안내합니다. 이전에 누른 키를 기억해 판단하지 않고 실제 선택값을 다시 확인합니다. 화면 알림과 최근 결과도 ‘이미 적용됨’으로 구분합니다. 모델이 같아도 추론이 다르면 실제로 변경하며, 응답 중/확인 불가/확인 중 값 변경에는 기존 차단 규칙을 적용합니다.
 
 | 프리셋 | 모델·추론 | Windows | macOS |
 |---|---|---|---|
@@ -60,5 +62,6 @@ Mac은 [MAC_CODEX_INSTRUCTIONS.md](MAC_CODEX_INSTRUCTIONS.md)를 먼저 읽으�
 - [검증 결과와 미확인 항목](docs/VERIFICATION.md)
 - [구성요소별 커밋과 되돌림](docs/COMMITS.md)
 - [Mac Codex 인계](MAC_CODEX_INSTRUCTIONS.md)
+- [기존 Mac 수정본의 GitHub 동기화](docs/MAC_SYNC.md)
 
 이 도구는 OpenAI 공식 제품이나 공식 애드온이 아닙니다. 모델 전환은 다음 요청의 설정만 바꾸며 메시지 전송·새 요청·추론 호출은 수행하지 않습니다.

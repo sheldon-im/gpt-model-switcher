@@ -48,31 +48,31 @@ pub fn resolve(title: &str) -> Result<String, String> {
     resolve_in(&db, title)
 }
 pub fn validate_catalog(p: &switcher_core::Preset) -> Result<(), String> {
-    let file = home()?.join("models_cache.codex_work_desktop.json");
-    if std::fs::metadata(&file)
-        .map_err(|_| "Desktop model catalog unavailable")?
-        .len()
-        > 8 * 1024 * 1024
-    {
-        return Err("Unsupported model catalog size".into());
-    }
-    let v: Value = serde_json::from_slice(&std::fs::read(file).map_err(|e| e.to_string())?)
-        .map_err(|_| "Unsupported model catalog format")?;
-    let fetched = chrono::DateTime::parse_from_rfc3339(
-        v["fetched_at"]
-            .as_str()
-            .ok_or("Missing catalog timestamp")?,
-    )
-    .map_err(|_| "Invalid catalog timestamp")?
-    .timestamp();
     let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_secs() as i64;
+        .duration_since(std::time::UNIX_EPOCH).map_err(|e|e.to_string())?.as_secs() as i64;
+    validate_catalog_in(&home()?, p, now)
+}
+fn validate_catalog_in(root: &std::path::Path, p: &switcher_core::Preset, now: i64) -> Result<(), String> {
+    // Work-attributed app servers use a scoped cache; local Codex app servers
+    // also use the standard cache. Only fall back when the scoped file is absent.
+    let scoped = root.join("models_cache.codex_work_desktop.json");
+    let file = match scoped.try_exists() {
+        Ok(true) => scoped,
+        Ok(false) => root.join("models_cache.json"),
+        Err(_) => return Err("ChatGPT의 모델 목록을 읽지 못했습니다. / Desktop model catalog is unreadable.".into()),
+    };
+    let metadata = std::fs::metadata(&file).map_err(|_| "ChatGPT의 모델 목록 파일을 찾지 못했습니다. ChatGPT를 연 뒤 다시 시도하십시오. / Desktop model catalog unavailable.")?;
+    if !metadata.is_file() || metadata.len() > 8 * 1024 * 1024 {
+        return Err("Unsupported model catalog size or file type".into());
+    }
+    let value: Value = serde_json::from_slice(&std::fs::read(file).map_err(|e|e.to_string())?)
+        .map_err(|_| "Unsupported model catalog format")?;
+    let fetched = chrono::DateTime::parse_from_rfc3339(value["fetched_at"].as_str().ok_or("Missing catalog timestamp")?)
+        .map_err(|_| "Invalid catalog timestamp")?.timestamp();
     if !(0..=86400).contains(&(now - fetched)) {
         return Err("모델 목록이 오래되었습니다. 앱에서 모델 목록을 갱신한 뒤 재시도하십시오. / Desktop model catalog is stale; refresh it in the app and retry.".into());
     }
-    catalog_contains(&v, p)
+    catalog_contains(&value, p)
 }
 fn catalog_contains(v: &Value, p: &switcher_core::Preset) -> Result<(), String> {
     let models = v["models"].as_array().ok_or("Unsupported model catalog")?;
@@ -455,6 +455,45 @@ mod tests {
         assert!(resolve_in(&db, "unique").is_err());
         db.execute_batch("UPDATE threads SET archived=1;").unwrap();
         assert!(resolve_in(&db, "unique").is_err());
+    }
+    struct CatalogFixture(PathBuf);
+    impl CatalogFixture {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!("switcher-catalog-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir(&path).unwrap(); Self(path)
+        }
+        fn write(&self, name: &str, fetched: i64) {
+            let value = json!({"fetched_at":chrono::DateTime::from_timestamp(fetched,0).unwrap().to_rfc3339(),
+                "models":[{"slug":"gpt-6.1-terra","visibility":"list","supported_reasoning_levels":[{"effort":"medium"}]}]});
+            std::fs::write(self.0.join(name),value.to_string()).unwrap();
+        }
+    }
+    impl Drop for CatalogFixture { fn drop(&mut self) {let _=std::fs::remove_dir_all(&self.0);} }
+    #[test]
+    fn catalog_supports_standard_cache_and_prefers_scoped_cache() {
+        let f=CatalogFixture::new();let preset=&switcher_core::Settings::default().presets[0];let now=1_800_000_000;
+        assert!(validate_catalog_in(&f.0,preset,now).unwrap_err().contains("모델 목록 파일"));
+        f.write("models_cache.json",now);
+        assert!(validate_catalog_in(&f.0,preset,now).is_ok());
+        f.write("models_cache.codex_work_desktop.json",now);
+        std::fs::write(f.0.join("models_cache.json"),b"broken").unwrap();
+        assert!(validate_catalog_in(&f.0,preset,now).is_ok());
+        f.write("models_cache.json",now);
+        std::fs::write(f.0.join("models_cache.codex_work_desktop.json"),b"broken").unwrap();
+        assert!(validate_catalog_in(&f.0,preset,now).unwrap_err().contains("format"));
+    }
+    #[test]
+    fn standard_catalog_keeps_freshness_visibility_and_size_guards() {
+        let f=CatalogFixture::new();let preset=&switcher_core::Settings::default().presets[0];let now=1_800_000_000;
+        for fetched in [now-86401,now+1] {
+            f.write("models_cache.json",fetched);
+            assert!(validate_catalog_in(&f.0,preset,now).unwrap_err().contains("stale"));
+        }
+        f.write("models_cache.json",now);
+        let mut unsupported=preset.clone();unsupported.effort="ultra".into();
+        assert!(validate_catalog_in(&f.0,&unsupported,now).is_err());
+        std::fs::OpenOptions::new().write(true).open(f.0.join("models_cache.json")).unwrap().set_len(8*1024*1024+1).unwrap();
+        assert!(validate_catalog_in(&f.0,preset,now).unwrap_err().contains("size"));
     }
     #[test]
     fn catalog_rejects_unknown_and_hidden_combinations() {

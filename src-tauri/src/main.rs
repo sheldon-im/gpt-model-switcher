@@ -35,6 +35,15 @@ fn handle_launch(app: &tauri::AppHandle, args: &[String], initial: bool) {
     }
 }
 fn main() {
+    if std::env::args().any(|a| a == "--check-catalog") {
+        let settings = switcher_core::Settings::default();
+        let checks: Vec<_> = settings.presets.iter().map(|preset| serde_json::json!({
+            "id":preset.id,"model":preset.model,"effort":preset.effort,
+            "validation":desktop_ipc::validate_catalog(preset)
+        })).collect();
+        println!("{}", serde_json::to_string(&checks).unwrap());
+        return;
+    }
     if std::env::args().any(|a| a == "--inspect") {
         println!("{}", serde_json::to_string(&platform::inspect()).unwrap());
         return;

@@ -210,6 +210,7 @@ pub async fn apply_preset(app: AppHandle, id: String) -> Result<Outcome, String>
             Ok(()) => platform::switch(&preset),
             Err(e) => Outcome {
                 success: false,
+                already_applied: false,
                 message: e,
                 actual: None,
                 restored: false,

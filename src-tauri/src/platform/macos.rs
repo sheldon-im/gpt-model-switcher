@@ -33,7 +33,9 @@ fn request(args: &[&str]) -> Result<Value, String> {
         Ok(v)
     }
 }
-pub fn announce(message:&str)->Result<(),String>{request(&["announce",message]).map(|_|())}
+pub fn announce(message: &str) -> Result<(), String> {
+    request(&["announce", message]).map(|_| ())
+}
 pub fn active() -> bool {
     request(&["foreground"])
         .ok()
@@ -137,6 +139,7 @@ pub fn switch(p: &Preset) -> Outcome {
     })();
     result.unwrap_or_else(|message| Outcome {
         success: false,
+        already_applied: false,
         message,
         actual: None,
         restored: false,

@@ -47,6 +47,7 @@ pub fn apply(
     let mut before_visible = None;
     let mut before_raw = None;
     let mut attempted = false;
+    let mut already_applied = false;
     let result = (|| {
         let visible = context.guard()?;
         before_visible = Some(visible.clone());
@@ -65,7 +66,15 @@ pub fn apply(
         }
         before_raw = Some(raw.clone());
         if visible.matches(p) {
-            return Ok(visible);
+            let verified = context.guard()?;
+            if !verified.matches(p) {
+                return Err(
+                    "확인 중 선택값이 바뀌었습니다. / Selection changed during verification."
+                        .into(),
+                );
+            }
+            already_applied = true;
+            return Ok(verified);
         }
         conn.validate(p)?;
         if context.guard()? != visible {
@@ -95,6 +104,7 @@ pub fn apply(
     match result {
         Ok(actual) => Outcome {
             success: true,
+            already_applied,
             message: format!("{} · {}", p.model, p.effort),
             actual: Some(actual),
             restored: false,
@@ -133,6 +143,7 @@ pub fn apply(
             let actual = context.guard().ok();
             Outcome {
                 success: false,
+                already_applied: false,
                 message,
                 actual,
                 restored,
@@ -227,8 +238,43 @@ mod tests {
     #[test]
     fn no_op_does_not_mutate_or_move_focus() {
         let (mut n, mut c) = setup();
-        assert!(apply(&mut n, &mut c, "id", &Settings::default().presets[1]).success);
+        let result = apply(&mut n, &mut c, "id", &Settings::default().presets[1]);
+        assert!(result.success && result.already_applied);
         assert_eq!(c.writes, 0)
+    }
+    #[test]
+    fn repeated_preset_presses_read_actual_values_without_any_write() {
+        let (mut n, mut c) = setup();
+        let p = &Settings::default().presets[1];
+        for _ in 0..3 {
+            let result = apply(&mut n, &mut c, "id", p);
+            assert!(result.success && result.already_applied);
+            assert_eq!(result.actual.as_ref().unwrap().effort, "high");
+        }
+        assert_eq!(c.writes, 0);
+        assert!(c.raw["reasoningEffort"].is_null());
+    }
+    #[test]
+    fn same_model_with_a_different_effort_is_a_real_change() {
+        let (mut n, mut c) = setup();
+        let p = &Settings::default().presets[1];
+        n.selection.effort = "low".into();
+        c.raw["reasoningEffort"] = json!("low");
+        n.after = Some(Selection {
+            model: p.model.clone(),
+            effort: p.effort.clone(),
+        });
+        let result = apply(&mut n, &mut c, "id", p);
+        assert!(result.success && !result.already_applied);
+        assert_eq!(c.writes, 1);
+    }
+    #[test]
+    fn no_op_is_not_claimed_when_the_last_selection_check_changes() {
+        let (mut n, mut c) = setup();
+        n.edit_before_write = true;
+        let result = apply(&mut n, &mut c, "id", &Settings::default().presets[1]);
+        assert!(!result.success && !result.already_applied);
+        assert_eq!(c.writes, 0);
     }
     #[test]
     fn changed_visible_default_does_not_get_overwritten() {

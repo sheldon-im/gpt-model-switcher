@@ -116,7 +116,7 @@ impl Session {
             CoInitializeEx(None, COINIT_MULTITHREADED)
                 .ok()
                 .map_err(err)?;
-            let result: Result<Self,String> = (|| {
+            let result: Result<Self, String> = (|| {
                 let ui: IUIAutomation =
                     CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER).map_err(err)?;
                 if let Ok(u) = ui.cast::<IUIAutomation2>() {
@@ -334,6 +334,7 @@ pub fn switch(p: &switcher_core::Preset) -> switcher_core::switching::Outcome {
     })();
     result.unwrap_or_else(|message| switcher_core::switching::Outcome {
         success: false,
+        already_applied: false,
         message,
         actual: None,
         restored: false,

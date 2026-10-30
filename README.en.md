@@ -18,8 +18,6 @@ Everyday tasks and demanding work such as coding call for different models and r
 3. For portable use, extract the entire `gpt-model-switcher-0.1.5-windows-x64-test.zip` archive and run `gpt-model-switcher.exe`. Keep the accompanying `nvda` folder; it contains the files needed for NVDA announcements.
 4. Closing the settings window leaves the app running in the notification area. Press Win+B, use the arrow keys to find the app, then press Shift+F10 to open its menu and choose **설정 / Settings** or **종료 / Quit**. If the icon is hidden, open the hidden-icons menu first.
 
-Windows automated checks and package builds have passed. The user has confirmed quiet model switching and a separate NVDA announcement test. Full hands-on verification of actual preset announcements, repeated-preset feedback, and braille is still pending. See `WINDOWS_VERIFICATION-0.1.5.json` in the release for the verification scope.
-
 ### Mac
 
 1. Download and open `gpt-model-switcher-0.1.5-macos-arm64-test.dmg`. If you prefer ZIP, download and extract `gpt-model-switcher-0.1.5-macos-arm64.zip` instead.

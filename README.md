@@ -20,8 +20,6 @@
 3. 설치 없이 사용하려면 `gpt-model-switcher-0.1.5-windows-x64-test.zip`을 폴더 전체로 풀고 `gpt-model-switcher.exe`를 실행하십시오. NVDA 안내에 필요한 `nvda` 폴더도 함께 보관해야 합니다.
 4. 설정 창을 닫아도 알림 영역에서 계속 실행됩니다. Win+B로 알림 영역에 이동한 뒤 방향키로 앱을 찾고 Shift+F10으로 메뉴를 열어 **설정 / Settings** 또는 **종료 / Quit**를 선택할 수 있습니다. 아이콘이 숨겨져 있으면 숨겨진 아이콘 메뉴를 먼저 여십시오.
 
-Windows 자동 검사와 패키지 빌드는 통과했습니다. 사용자가 조용한 모델 전환과 별도 NVDA 음성 시험을 확인했으나, 실제 프리셋·동일 프리셋 재입력의 음성/점자 등 전체 실사용 검증은 남아 있습니다. 자세한 범위는 릴리즈의 `WINDOWS_VERIFICATION-0.1.5.json`에 있습니다.
-
 ### Mac
 
 1. `gpt-model-switcher-0.1.5-macos-arm64-test.dmg`를 받아 여세요. ZIP이 편하시면 `gpt-model-switcher-0.1.5-macos-arm64.zip`을 받아 압축을 풀어도 됩니다.

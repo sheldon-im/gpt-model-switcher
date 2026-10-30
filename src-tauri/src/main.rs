@@ -6,9 +6,9 @@ use tauri::{
     Manager,
 };
 mod desktop_ipc;
+mod notifications;
 mod platform;
 mod quiet_switch;
-mod notifications;
 mod runtime;
 use runtime::*;
 fn main() {
@@ -39,6 +39,12 @@ fn main() {
             let path = app.path().app_config_dir()?.join("settings.json");
             app.manage(AppState::new(path));
             notifications::setup(app.handle())?;
+            if !std::env::args().any(|a| a == "--background") {
+                if let Some(w) = app.get_webview_window("main") {
+                    w.show()?;
+                    w.set_focus()?;
+                }
+            }
             if std::env::args().any(|a| a == "--fixture") {
                 let w = app
                     .get_webview_window("main")

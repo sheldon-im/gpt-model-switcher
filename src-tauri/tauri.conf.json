@@ -17,6 +17,7 @@
         "height": 780,
         "minWidth": 420,
         "minHeight": 500
+        ,"visible": false
       }
     ],
     "security": {
@@ -37,6 +38,9 @@
     "macOS": {
       "minimumSystemVersion": "13.0",
       "signingIdentity": "-"
+    },
+    "windows": {
+      "nsis": {"languages":["Korean","English"],"displayLanguageSelector":true,"installMode":"currentUser"}
     }
   }
 }

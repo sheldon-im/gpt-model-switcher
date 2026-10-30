@@ -1,0 +1,58 @@
+# GPT Model Switcher · 시험판
+
+Windows 11 x64 / macOS 13 이상 Apple Silicon에서 사용하는 모델·추론 수준 프리셋 도구입니다. Tauri 2, Rust, React/TypeScript로 작성했습니다. 자동 시작은 기본 해제입니다.
+
+**현재는 시험 후보입니다. 실제 NVDA·VoiceOver 사용 검증을 통과한 배포판이 아닙니다.** 메뉴 자동화에서 사용자가 NVDA의 중간 포커스 이동·과도한 읽기를 발견하여 기본 전환을 포커스 없는 설정 연결로 교체했습니다. Mac 코드는 Windows에서 빌드·실행 검증하지 못했습니다.
+
+| 프리셋 | 모델·추론 | Windows | macOS |
+|---|---|---|---|
+| 일상용 | gpt-6.1-terra · medium | Ctrl+Alt+Shift+1 | Command+Option+Shift+1 |
+| 코딩용 | gpt-6.1-sol · high | Ctrl+Alt+Shift+2 | Command+Option+Shift+2 |
+
+## 사용
+
+1. 실행하면 설정 창이 열립니다. Tab/Shift+Tab으로 항목을 이동하고 Space로 체크박스를 바꾸며, 프리셋 이름·정확한 모델 ID·추론 수준·운영체제별 단축키를 편집합니다. 한국어/영어를 선택할 수 있습니다. 저장 버튼으로 적용합니다.
+2. ChatGPT의 기존 로컬 대화로 돌아가십시오. 응답이 끝난 뒤 입력창에 포커스를 두고 단축키를 누른 다음 보조 키에서 손을 떼십시오. 다른 앱에서는 이 도구의 단축키를 해제합니다.
+3. 모델과 추론 수준이 함께 바뀝니다. 메뉴를 열거나 입력 내용을 편집하거나 입력 포커스를 강제로 옮기지 않습니다. 화면 알림은 포커스를 받지 않으며, 스크린 리더 안내는 최종 결과 한 건만 요청합니다. 스크린 리더 자체의 설정이나 음성을 끄지 않습니다.
+4. 트레이/메뉴 막대의 ‘설정 / Settings’를 열어 ‘최근 전환 결과’에서 이번 실행의 최근 20건을 다시 확인할 수 있습니다. 화면 알림과 스크린 리더 안내는 각각 끌 수 있습니다. ‘상태 새로고침’으로 알림 전달 오류도 확인할 수 있습니다.
+5. 창을 닫으면 계속 상주합니다. 트레이/메뉴 막대의 ‘종료 / Quit’로 완전히 종료합니다. 자동 시작 등록은 하지 않습니다. `--background`로 실행하면 설정 창을 열지 않고 상주합니다.
+
+## 지원 범위와 중단 조건
+
+- 설치된 ChatGPT desktop **26.1027.3384.0**의 내부 설정 연결을 조사했습니다. 공개 확장 API가 아니며 앱 업데이트에 따라 사용할 수 없을 수 있습니다. 성공을 보장하지 않는 시험 호환 경로입니다.
+- 로컬 대화 색인·앱 소유자의 설정 응답·화면 선택값을 대조합니다. 클라우드 채팅, 원격 호스트, 새 대화, 같은 제목의 대화, 다른 공급자/특수 모드, 읽을 수 없는 화면, 오래된 모델 목록은 중단합니다. 화면이나 모델을 자동 대체하지 않습니다.
+- 모델 목록은 앱이 기록한 `models_cache.codex_work_desktop.json`에서 해당 모델·추론 조합을 확인하며, 기록 시간이 하루를 넘으면 중단합니다. 현재 계정의 실시간 이용 권한을 별도로 인증한 것은 아닙니다.
+- 생성 중, 다른 창/대화/포커스로 이동한 경우에는 중단합니다. 단축키 등록 충돌은 설정 상태에 표시하며 등록을 모두 해제합니다.
+- 실제 선택값을 확인하지 못하면 성공으로 표시하지 않습니다. 현재 대화·포커스와 설정 소유자가 그대로이고 방금 요청한 조합이 확인되는 경우에만 조건부로 원래 값을 복구합니다. 확인할 수 없으면 추가 조작 없이 실제 상태 미확인으로 기록합니다.
+- 기존 메뉴 조작 경로로 자동 재시도하지 않습니다. ‘입력창 복귀’ 대신 처음부터 입력 포커스를 보존합니다. 다른 컨트롤에서 누르면 그 컨트롤의 포커스를 보존합니다.
+
+## 빌드
+
+공통 준비: Node.js 22 이상, pnpm 10, Rust stable. Windows는 Visual Studio C++ Build Tools와 WebView2, Mac은 Xcode Command Line Tools가 필요합니다.
+
+```text
+pnpm install --frozen-lockfile
+cargo test --workspace --locked
+pnpm test
+pnpm build
+```
+
+Windows PowerShell:
+
+```powershell
+pnpm tauri build --bundles nsis
+```
+
+설치본: `target/release/bundle/nsis/`. 단독 실행 파일: `target/release/gpt-model-switcher.exe`. 코드 서명은 하지 않았습니다. 실제 설치는 사용자 선택이며, 이 저장소의 빌드 작업에서 자동 설치하지 않습니다.
+
+Mac은 [MAC_CODEX_INSTRUCTIONS.md](MAC_CODEX_INSTRUCTIONS.md)를 먼저 읽으십시오. 유료 Apple 개발자 계정 없이 임시 서명으로 개발·시험하며 정식 서명·공증·공개 배포는 별도 결정입니다.
+
+설정은 Tauri 사용자 설정 폴더의 `io.github.gpt-model-switcher.desktop/settings.json`에 버전 있는 JSON으로 저장합니다(Windows는 보통 `%APPDATA%`, macOS는 `~/Library/Application Support`). 변경 전에 `.bak`을 보존합니다. 손상되거나 미래 버전인 원본은 덮어쓰지 않습니다. 최근 결과는 메모리에만 유지됩니다. 대화 본문·작성문·인증 토큰을 읽어 저장하거나 ZIP에 포함하지 않습니다. 앱의 로컬 색인은 읽기 전용으로 사용합니다.
+
+## 검증 문서
+
+- [검증 결과와 미확인 항목](docs/VERIFICATION.md)
+- [구성요소별 커밋과 되돌림](docs/COMMITS.md)
+- [Mac Codex 인계](MAC_CODEX_INSTRUCTIONS.md)
+
+이 도구는 OpenAI 공식 제품이나 공식 애드온이 아닙니다. 모델 전환은 다음 요청의 설정만 바꾸며 메시지 전송·새 요청·추론 호출은 수행하지 않습니다.
